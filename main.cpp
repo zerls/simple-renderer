@@ -17,16 +17,11 @@ int main() {
 
     // 创建一个简单的OBJ文件用于测试
     std::string testObjFile = "box_sphere.obj";
-    // CreateSimpleOBJ(testObjFile);
     
     // 加载并渲染OBJ模型
     DrawOBJModel(renderer, testObjFile);
     
     // 以下是原来的测试代码，可以根据需要注释或取消注释
-    // DrawTriangle(renderer);
-    //DrawTriangleWithLighting(renderer);
-    //DrawCube(renderer);
-    //DrawCubeWithLighting(renderer);
     
     std::cout << "渲染完成!" << std::endl;
     

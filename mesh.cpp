@@ -16,19 +16,19 @@ Mesh::Mesh() {
 }
 
 // 添加顶点
-void Mesh::addVertex(const Vec3& v) {
+void Mesh::addVertex(const Vec3f& v) {
     vertices.push_back(v);
     // 添加默认顶点颜色（白色）
     vertexColors.push_back(Color(255, 255, 255));
 }
 
 // 添加纹理坐标
-void Mesh::addTexCoord(const Vec2& t) {
+void Mesh::addTexCoord(const Vec2f& t) {
     texCoords.push_back(t);
 }
 
 // 添加法线
-void Mesh::addNormal(const Vec3& n) {
+void Mesh::addNormal(const Vec3f& n) {
     normals.push_back(n);
 }
 
@@ -54,14 +54,14 @@ void Mesh::calculateFaceNormals() {
         }
         
         // 获取面的三个顶点
-        const Vec3& v0 = vertices[face.vertexIndices[0]];
-        const Vec3& v1 = vertices[face.vertexIndices[1]];
-        const Vec3& v2 = vertices[face.vertexIndices[2]];
+        const Vec3f& v0 = vertices[face.vertexIndices[0]];
+        const Vec3f& v1 = vertices[face.vertexIndices[1]];
+        const Vec3f& v2 = vertices[face.vertexIndices[2]];
         
         // 计算面法线（顶点按逆时针排列，右手法则）
-        Vec3 edge1 = v1 - v0;
-        Vec3 edge2 = v2 - v0;
-        Vec3 normal = cross(edge1, edge2);
+        Vec3f edge1 = v1 - v0;
+        Vec3f edge2 = v2 - v0;
+        Vec3f normal = cross(edge1, edge2);
         
         // 归一化法线
         normals[i] = normalize(normal);
@@ -72,7 +72,7 @@ void Mesh::calculateFaceNormals() {
 void Mesh::calculateVertexNormals() {
     // 清空现有法线
     normals.clear();
-    normals.resize(vertices.size(), Vec3(0, 0, 0));
+    normals.resize(vertices.size(), Vec3f(0, 0, 0));
     
     // 遍历所有面，累加面法线到相关顶点
     for (const Face& face : faces) {
@@ -81,14 +81,14 @@ void Mesh::calculateVertexNormals() {
         }
         
         // 获取面的三个顶点
-        const Vec3& v0 = vertices[face.vertexIndices[0]];
-        const Vec3& v1 = vertices[face.vertexIndices[1]];
-        const Vec3& v2 = vertices[face.vertexIndices[2]];
+        const Vec3f& v0 = vertices[face.vertexIndices[0]];
+        const Vec3f& v1 = vertices[face.vertexIndices[1]];
+        const Vec3f& v2 = vertices[face.vertexIndices[2]];
         
         // 计算面法线
-        Vec3 edge1 = v1 - v0;
-        Vec3 edge2 = v2 - v0;
-        Vec3 normal = normalize(cross(edge1, edge2));
+        Vec3f edge1 = v1 - v0;
+        Vec3f edge2 = v2 - v0;
+        Vec3f normal = normalize(cross(edge1, edge2));
         
         // 将面法线加到所有相关顶点
         for (int index : face.vertexIndices) {
@@ -97,23 +97,23 @@ void Mesh::calculateVertexNormals() {
     }
     
     // 归一化所有顶点法线
-    for (Vec3& normal : normals) {
+    for (Vec3f& normal : normals) {
         normal = normalize(normal);
     }
 }
 
 // 计算边界框
-void Mesh::calculateBoundingBox(Vec3& min, Vec3& max) const {
+void Mesh::calculateBoundingBox(Vec3f& min, Vec3f& max) const {
     if (vertices.empty()) {
-        min = Vec3(0, 0, 0);
-        max = Vec3(0, 0, 0);
+        min = Vec3f(0, 0, 0);
+        max = Vec3f(0, 0, 0);
         return;
     }
     
-    min = Vec3(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
-    max = Vec3(std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest());
+    min = Vec3f(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+    max = Vec3f(std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest());
     
-    for (const Vec3& v : vertices) {
+    for (const Vec3f& v : vertices) {
         min.x = std::min(min.x, v.x);
         min.y = std::min(min.y, v.y);
         min.z = std::min(min.z, v.z);
@@ -132,17 +132,17 @@ void Mesh::setColor(const Color& color) {
 
 // 中心化网格
 void Mesh::centerize() {
-    Vec3 min, max;
+    Vec3f min, max;
     calculateBoundingBox(min, max);
     
-    Vec3 center = Vec3(
+    Vec3f center = Vec3f(
         (min.x + max.x) * 0.5f,
         (min.y + max.y) * 0.5f,
         (min.z + max.z) * 0.5f
     );
     
     // 移动所有顶点，使中心点位于原点
-    for (Vec3& v : vertices) {
+    for (Vec3f& v : vertices) {
         v.x -= center.x;
         v.y -= center.y;
         v.z -= center.z;
@@ -150,27 +150,27 @@ void Mesh::centerize() {
 }
 
 // 将网格缩放到单位立方体大小
-// void Mesh::normalize() {
-//     Vec3 min, max;
+// void Mesh::normaliz()e() {
+//     Vec3f min, max;
 //     calculateBoundingBox(min, max);
     
 //     // 计算模型的尺寸
-//     float sizeX = max.x - min.x;
-//     float sizeY = max.y - min.y;
-//     float sizeZ = max.z - min.z;
+//     float siz()eX = max.x - min.x;
+//     float siz()eY = max.y - min.y;
+//     float siz()eZ() = max.z - min.z;
     
 //     // 找出最大尺寸
-//     float maxSize = std::max(std::max(sizeX, sizeY), sizeZ);
+//     float maxSiz()e = std::max(std::max(siz()eX, siz()eY), siz()eZ());
     
-//     if (maxSize < 0.0001f) {
+//     if (maxSiz()e < 0.0001f) {
 //         return; // 防止除以零
 //     }
     
 //     // 缩放因子
-//     float scale = 1.0f / maxSize;
+//     float scale = 1.0f / maxSiz()e;
     
 //     // 缩放所有顶点
-//     for (Vec3& v : vertices) {
+//     for (Vec3f& v : vertices) {
 //         v.x *= scale;
 //         v.y *= scale;
 //         v.z *= scale;
@@ -195,14 +195,14 @@ std::vector<Triangle> Mesh::triangulate(const Face& face) const {
         int idx2 = face.vertexIndices[i + 1];
         
         // 获取顶点位置
-        Vec3 pos0 = vertices[idx0];
-        Vec3 pos1 = vertices[idx1];
-        Vec3 pos2 = vertices[idx2];
+        Vec3f pos0 = vertices[idx0];
+        Vec3f pos1 = vertices[idx1];
+        Vec3f pos2 = vertices[idx2];
         
         // 默认顶点法线
-        Vec3 normal0 = Vec3(0, 0, 1);
-        Vec3 normal1 = Vec3(0, 0, 1);
-        Vec3 normal2 = Vec3(0, 0, 1);
+        Vec3f normal0 = Vec3f(0, 0, 1);
+        Vec3f normal1 = Vec3f(0, 0, 1);
+        Vec3f normal2 = Vec3f(0, 0, 1);
         
         // 如果有法线索引，则使用指定的法线
         if (!face.normalIndices.empty() && normals.size() > 0) {
@@ -218,9 +218,9 @@ std::vector<Triangle> Mesh::triangulate(const Face& face) const {
         }
         
         // 默认纹理坐标
-        Vec2 tex0 = Vec2(0, 0);
-        Vec2 tex1 = Vec2(1, 0);
-        Vec2 tex2 = Vec2(0, 1);
+        Vec2f tex0 = Vec2f(0, 0);
+        Vec2f tex1 = Vec2f(1, 0);
+        Vec2f tex2 = Vec2f(0, 1);
         
         // 如果有纹理索引，则使用指定的纹理坐标
         if (!face.texCoordIndices.empty() && texCoords.size() > 0) {
@@ -248,13 +248,13 @@ std::vector<Triangle> Mesh::triangulate(const Face& face) const {
 // 绘制网格 - 修复版本
 void Mesh::draw(Renderer& renderer) const {
     // 获取当前的MVP矩阵
-    Matrix4x4 mvpMatrix = renderer.getMVPMatrix();
+    Matrix4x4f mvpMatrix = renderer.getMVPMatrix();
     
     // 在观察空间中，摄像机位于原点
-    Vec3 eyePos = Vec3(0, 0, 0);
+    Vec3f eyePos = Vec3f(0, 0, 0);
     
     // 获取世界空间中的相机位置（用于光照计算）
-    Vec3 worldEyePos = transformNoDiv(renderer.getViewMatrix(), eyePos, 0.0f);
+    Vec3f worldEyePos = transformNoDiv(renderer.getViewMatrix(), eyePos, 0.0f);
     
     for (const Face& face : faces) {
         // 将面转换为一个或多个三角形
@@ -270,8 +270,8 @@ void Mesh::draw(Renderer& renderer) const {
                     litTriangle.vertices[v] = tri.vertices[v];
                     
                     // 变换顶点位置和法线
-                    Vec3 worldPos = transformNoDiv(renderer.getModelMatrix(), tri.vertices[v].position);
-                    Vec3 transformedNormal = transformNormal(renderer.getModelMatrix(), tri.vertices[v].normal);
+                    Vec3f worldPos = transformNoDiv(renderer.getModelMatrix(), tri.vertices[v].position);
+                    Vec3f transformedNormal = transformNormal(renderer.getModelMatrix(), tri.vertices[v].normal);
                     
                     // 创建带变换后法线的顶点
                     Vertex worldVertex(worldPos, transformedNormal, tri.vertices[v].texCoord, tri.vertices[v].color);
@@ -313,19 +313,19 @@ std::shared_ptr<Mesh> loadOBJ(const std::string& filename) {
             // 读取顶点
             float x, y, z;
             iss >> x >> y >> z;
-            mesh->addVertex(Vec3(x, y, z));
+            mesh->addVertex(Vec3f(x, y, z));
         }
         else if (token == "vt") {
             // 读取纹理坐标
             float u, v;
             iss >> u >> v;
-            mesh->addTexCoord(Vec2(u, v));
+            mesh->addTexCoord(Vec2f(u, v));
         }
         else if (token == "vn") {
             // 读取法线
             float x, y, z;
             iss >> x >> y >> z;
-            mesh->addNormal(normalize(Vec3(x, y, z)));
+            mesh->addNormal(normalize(Vec3f(x, y, z)));
         }
         else if (token == "f") {
             // 读取面
@@ -369,7 +369,7 @@ std::shared_ptr<Mesh> loadOBJ(const std::string& filename) {
     
     // 中心化和标准化网格
     mesh->centerize();
-    // mesh->normalize();
+    // mesh->normaliz()e();
     
     std::cout << "已加载 " << filename << "：" << mesh->getVertexCount() << " 个顶点，" 
               << mesh->getFaceCount() << " 个面。" << std::endl;
@@ -377,18 +377,35 @@ std::shared_ptr<Mesh> loadOBJ(const std::string& filename) {
     return mesh;
 }
 
+// 矩阵-向量变换函数
+Vec3f transform(const Matrix4x4f& matrix, const Vec3f& vector, float w ) {
+    float x = vector.x * matrix.m00 + vector.y * matrix.m01 + vector.z * matrix.m02 + w * matrix.m03;
+    float y = vector.x * matrix.m10 + vector.y * matrix.m11 + vector.z * matrix.m12 + w * matrix.m13;
+    float z = vector.x * matrix.m20 + vector.y * matrix.m21 + vector.z * matrix.m22 + w * matrix.m23;
+    float wOut = vector.x * matrix.m30 + vector.y * matrix.m31 + vector.z * matrix.m32 + w * matrix.m33;
+    
+    // 透视除法
+    if (std::abs(wOut) > 1e-6f) {
+        float invW = 1.0f / wOut;
+        return Vec3f(x * invW, y * invW, z * invW);
+    }
+    
+    return Vec3f(x, y, z);
+}
+
+
 // 添加辅助函数：transformNoDiv 和 transformNormal 的实现
-Vec3 transformNoDiv(const Matrix4x4& matrix, const Vec3& vector, float w) {
+Vec3f transformNoDiv(const Matrix4x4f& matrix, const Vec3f& vector, float w) {
     float x = vector.x * matrix.m00 + vector.y * matrix.m01 + vector.z * matrix.m02 + w * matrix.m03;
     float y = vector.x * matrix.m10 + vector.y * matrix.m11 + vector.z * matrix.m12 + w * matrix.m13;
     float z = vector.x * matrix.m20 + vector.y * matrix.m21 + vector.z * matrix.m22 + w * matrix.m23;
     
-    return Vec3(x, y, z);
+    return Vec3f(x, y, z);
 }
 
-Vec3 transformNormal(const Matrix4x4& modelMatrix, const Vec3& normal) {
+Vec3f transformNormal(const Matrix4x4f& modelMatrix, const Vec3f& normal) {
     // 简化实现: 假设模型矩阵只有旋转和均匀缩放，可以直接使用模型矩阵
-    Vec3 result;
+    Vec3f result;
     result.x = normal.x * modelMatrix.m00 + normal.y * modelMatrix.m01 + normal.z * modelMatrix.m02;
     result.y = normal.x * modelMatrix.m10 + normal.y * modelMatrix.m11 + normal.z * modelMatrix.m12;
     result.z = normal.x * modelMatrix.m20 + normal.y * modelMatrix.m21 + normal.z * modelMatrix.m22;

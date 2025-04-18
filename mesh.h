@@ -10,8 +10,9 @@
 #include "renderer.h"
 
 // 添加辅助函数声明
-Vec3 transformNoDiv(const Matrix4x4& matrix, const Vec3& vector, float w = 1.0f);
-Vec3 transformNormal(const Matrix4x4& modelMatrix, const Vec3& normal);
+Vec3f transform(const Matrix4x4f& matrix, const Vec3f& vector, float w = 1.0f);
+Vec3f transformNoDiv(const Matrix4x4f& matrix, const Vec3f& vector, float w = 1.0f);
+Vec3f transformNormal(const Matrix4x4f& modelMatrix, const Vec3f& normal);
 
 // 定义面的结构
 struct Face {
@@ -29,9 +30,9 @@ public:
     ~Mesh() = default;
     
     // 添加顶点、纹理坐标、法线和面
-    void addVertex(const Vec3& v);
-    void addTexCoord(const Vec2& t);
-    void addNormal(const Vec3& n);
+    void addVertex(const Vec3f& v);
+    void addTexCoord(const Vec2f& t);
+    void addNormal(const Vec3f& n);
     void addFace(const Face& f);
     
     // 设置网格材质
@@ -44,7 +45,7 @@ public:
     void calculateVertexNormals();
     
     // 计算边界框
-    void calculateBoundingBox(Vec3& min, Vec3& max) const;
+    void calculateBoundingBox(Vec3f& min, Vec3f& max) const;
     
     // 获取材质
     const Material& getMaterial() const { return material; }
@@ -68,9 +69,9 @@ public:
     // void normalize();
     
     // 将这些数据成员修改为public，以便在实现中访问
-    std::vector<Vec3> vertices;         // 顶点
-    std::vector<Vec2> texCoords;        // 纹理坐标
-    std::vector<Vec3> normals;          // 法线
+    std::vector<Vec3f> vertices;         // 顶点
+    std::vector<Vec2f> texCoords;        // 纹理坐标
+    std::vector<Vec3f> normals;          // 法线
     std::vector<Face> faces;            // 面
     std::vector<Color> vertexColors;    // 顶点颜色
     Material material;                  // 材质
