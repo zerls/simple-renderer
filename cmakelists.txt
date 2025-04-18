@@ -7,10 +7,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 添加可执行文件
 add_executable(SimpleRenderer
+    test.cpp
     main.cpp
     renderer.cpp
-    # maths.cpp
     shader.cpp
+    mesh.cpp
+    
 )
 
 # 添加头文件目录

@@ -2,8 +2,11 @@
 // 基本光栅化渲染器的实现文件
 
 #include "renderer.h"
+#include "mesh.h"
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <iostream>
 
 // 矩阵-向量变换函数
 Vec3 transform(const Matrix4x4& matrix, const Vec3& vector, float w = 1.0f) {
@@ -22,26 +25,26 @@ Vec3 transform(const Matrix4x4& matrix, const Vec3& vector, float w = 1.0f) {
 }
 
 // 仅进行矩阵-向量乘法，不进行透视除法
-Vec3 transformNoDiv(const Matrix4x4& matrix, const Vec3& vector, float w = 1.0f) {
-    float x = vector.x * matrix.m00 + vector.y * matrix.m01 + vector.z * matrix.m02 + w * matrix.m03;
-    float y = vector.x * matrix.m10 + vector.y * matrix.m11 + vector.z * matrix.m12 + w * matrix.m13;
-    float z = vector.x * matrix.m20 + vector.y * matrix.m21 + vector.z * matrix.m22 + w * matrix.m23;
+// Vec3 transformNoDiv(const Matrix4x4& matrix, const Vec3& vector, float w = 1.0f) {
+//     float x = vector.x * matrix.m00 + vector.y * matrix.m01 + vector.z * matrix.m02 + w * matrix.m03;
+//     float y = vector.x * matrix.m10 + vector.y * matrix.m11 + vector.z * matrix.m12 + w * matrix.m13;
+//     float z = vector.x * matrix.m20 + vector.y * matrix.m21 + vector.z * matrix.m22 + w * matrix.m23;
     
-    return Vec3(x, y, z);
-}
+//     return Vec3(x, y, z);
+// }
 
 // 变换法线向量 (使用法线矩阵: model矩阵的逆转置)
-Vec3 transformNormal(const Matrix4x4 &modelMatrix, const Vec3 &normal)
-{
-    // 简化实现: 假设模型矩阵只有旋转和均匀缩放，可以直接使用模型矩阵
-    // 完整实现应该使用模型矩阵的逆转置矩阵
-    Vec3 result;
-    result.x = normal.x * modelMatrix.m00 + normal.y * modelMatrix.m01 + normal.z * modelMatrix.m02;
-    result.y = normal.x * modelMatrix.m10 + normal.y * modelMatrix.m11 + normal.z * modelMatrix.m12;
-    result.z = normal.x * modelMatrix.m20 + normal.y * modelMatrix.m21 + normal.z * modelMatrix.m22;
+// Vec3 transformNormal(const Matrix4x4 &modelMatrix, const Vec3 &normal)
+// {
+//     // 简化实现: 假设模型矩阵只有旋转和均匀缩放，可以直接使用模型矩阵
+//     // 完整实现应该使用模型矩阵的逆转置矩阵
+//     Vec3 result;
+//     result.x = normal.x * modelMatrix.m00 + normal.y * modelMatrix.m01 + normal.z * modelMatrix.m02;
+//     result.y = normal.x * modelMatrix.m10 + normal.y * modelMatrix.m11 + normal.z * modelMatrix.m12;
+//     result.z = normal.x * modelMatrix.m20 + normal.y * modelMatrix.m21 + normal.z * modelMatrix.m22;
     
-    return normalize(result);
-}
+//     return normalize(result);
+// }
 
 // FrameBuffer 实现
 FrameBuffer::FrameBuffer(int width, int height)
@@ -321,15 +324,15 @@ Color Renderer::calculateLighting(const Vertex& vertex, const Material& material
     float3 halfwayDir = normalize(lightDir + viewDir);
     
     // 计算环境光分量
-    float3 ambient =material.ambient * light.color * light.ambientIntensity;
+    float3 ambient = material.ambient * light.color * light.ambientIntensity;
     
     // 计算漫反射分量（考虑光照角度）
     float diff = std::max(dot(normal, lightDir), 0.0f);
-    float3 diffuse =material.diffuse * light.color * (diff * light.intensity);
+    float3 diffuse = material.diffuse * light.color * (diff * light.intensity);
     
     // 计算镜面反射分量（考虑视角）
     float spec = std::pow(std::max(dot(normal, halfwayDir), 0.0f), material.shininess);
-    float3 specular =material.specular * light.color * spec * light.intensity;;
+    float3 specular = material.specular * light.color * spec * light.intensity;;
     
     // 合并所有光照分量
     float resultR = ambient.x + diffuse.x + specular.x;
@@ -358,3 +361,64 @@ Color Renderer::calculateLighting(const Vertex& vertex, const Material& material
     return finalColor;
 }
 
+// 绘制Mesh的实现
+void Renderer::drawMesh(const std::shared_ptr<Mesh>& mesh) {
+    if (!mesh) {
+        return;
+    }
+    
+    // 获取当前的MVP矩阵
+    Matrix4x4 mvpMatrix = getMVPMatrix();
+    
+    // 在观察空间中，摄像机位于原点
+    Vec3 eyePos = Vec3(0, 0, 0);
+    
+    // 获取世界空间中的相机位置（用于光照计算）
+    Vec3 worldEyePos = transformNoDiv(viewMatrix, eyePos, 0.0f);
+    
+    // 调用Mesh的绘制方法
+    mesh->draw(*this);
+}
+
+// 保存深度图到PPM文件
+void Renderer::saveDepthMap(const std::string& filename, float nearPlane, float farPlane) {
+    std::ofstream file(filename, std::ios::binary);
+    if (!file) {
+        std::cerr << "无法创建文件：" << filename << std::endl;
+        return;
+    }
+    
+    int width = frameBuffer->getWidth();
+    int height = frameBuffer->getHeight();
+    
+    // 写入PPM文件头
+    file << "P6\n" << width << " " << height << "\n255\n";
+    
+    // 准备临时缓冲区
+    std::vector<uint8_t> depthPixels(width * height * 3);
+    
+    // 为了可视化，我们将深度值映射到灰度值
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            float depth = frameBuffer->getDepth(x, y);
+            
+            // 将深度值从 [nearPlane, farPlane] 映射到 [0, 1]
+            float normalizedDepth = (depth - nearPlane) / (farPlane - nearPlane);
+            normalizedDepth = std::max(0.0f, std::min(1.0f, normalizedDepth));
+            
+            // 将归一化的深度值转换为灰度值
+            uint8_t grayValue = static_cast<uint8_t>((1.0f - normalizedDepth) * 255.0f);
+            
+            // 设置RGB值（相同的灰度值）
+            int index = (y * width + x) * 3;
+            depthPixels[index] = grayValue;     // R
+            depthPixels[index + 1] = grayValue; // G
+            depthPixels[index + 2] = grayValue; // B
+        }
+    }
+    
+    // 写入像素数据
+    file.write(reinterpret_cast<const char*>(depthPixels.data()), depthPixels.size());
+    
+    std::cout << "深度图已保存到 " << filename << std::endl;
+}
