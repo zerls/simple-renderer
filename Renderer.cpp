@@ -1,7 +1,7 @@
 // Renderer.cpp
 // 基本光栅化渲染器的实现文件
 
-#include "Renderer.h"
+#include "renderer.h"
 #include <algorithm>
 #include <cmath>
 
@@ -28,6 +28,19 @@ Vec3 transformNoDiv(const Matrix4x4& matrix, const Vec3& vector, float w = 1.0f)
     float z = vector.x * matrix.m20 + vector.y * matrix.m21 + vector.z * matrix.m22 + w * matrix.m23;
     
     return Vec3(x, y, z);
+}
+
+// 变换法线向量 (使用法线矩阵: model矩阵的逆转置)
+Vec3 transformNormal(const Matrix4x4 &modelMatrix, const Vec3 &normal)
+{
+    // 简化实现: 假设模型矩阵只有旋转和均匀缩放，可以直接使用模型矩阵
+    // 完整实现应该使用模型矩阵的逆转置矩阵
+    Vec3 result;
+    result.x = normal.x * modelMatrix.m00 + normal.y * modelMatrix.m01 + normal.z * modelMatrix.m02;
+    result.y = normal.x * modelMatrix.m10 + normal.y * modelMatrix.m11 + normal.z * modelMatrix.m12;
+    result.z = normal.x * modelMatrix.m20 + normal.y * modelMatrix.m21 + normal.z * modelMatrix.m22;
+    
+    return normalize(result);
 }
 
 // FrameBuffer 实现
@@ -111,11 +124,16 @@ void FrameBuffer::clear(const Color& color, float depth) {
 
 // Renderer 实现
 // 更新构造函数以初始化变换矩阵
+// 更新构造函数以初始化变换矩阵和光照
 Renderer::Renderer(int width, int height)
     : frameBuffer(std::make_unique<FrameBuffer>(width, height)),
       modelMatrix(Matrix4x4::identity()),
       viewMatrix(Matrix4x4::identity()),
-      projMatrix(Matrix4x4::identity()) {
+      projMatrix(Matrix4x4::identity()),
+      lightingEnabled(false)
+{
+    // 初始化默认光源
+    this->light = Light(Vec3(0.0f, 0.0f, -1.0f), Vec3(1.0f, 1.0f, 1.0f), 1.0f, 0.2f);
 }
 
 void Renderer::clear(const Color& color) {
@@ -226,24 +244,117 @@ void Renderer::drawTriangle(const Triangle& triangle) {
 void Renderer::drawCube(const Cube& cube) {
     // 获取当前的MVP矩阵
     Matrix4x4 mvpMatrix = getMVPMatrix();
+    Vec3 eyePos = Vec3(0, 0, 0); // 在观察空间中，摄像机位于原点
     
     // 绘制立方体的12个三角形
     for (int face = 0; face < 6; ++face) {
+        // 获取当前面的法线
+        Vec3 faceNormal = cube.faceNormals[face];
+        // 变换法线（使用模型矩阵）
+        Vec3 transformedNormal = transformNormal(modelMatrix, faceNormal);
+        
         // 每个面有2个三角形
         for (int i = 0; i < 2; ++i) {
             int triangleIndex = face * 2 + i;
             const auto& indices = cube.indices[triangleIndex];
             
-            // 使用面的颜色创建三角形
-            Triangle triangle(
-                Vertex(cube.vertices[indices[0]], cube.faceColors[face]),
-                Vertex(cube.vertices[indices[1]], cube.faceColors[face]),
-                Vertex(cube.vertices[indices[2]], cube.faceColors[face])
-            );
-            
-            // 绘制三角形
-            drawTriangle(triangle, mvpMatrix);
+            if (lightingEnabled) {
+                // 创建带法线的三角形
+                Triangle triangle(
+                    Vertex(cube.vertices[indices[0]], transformedNormal, Vec2(0, 0), cube.faceColors[face]),
+                    Vertex(cube.vertices[indices[1]], transformedNormal, Vec2(1, 0), cube.faceColors[face]),
+                    Vertex(cube.vertices[indices[2]], transformedNormal, Vec2(0, 1), cube.faceColors[face])
+                );
+                
+                // 应用光照计算
+                Material material; // 使用默认材质
+                Triangle litTriangle;
+                
+                for (int v = 0; v < 3; ++v) {
+                    // 复制顶点数据
+                    litTriangle.vertices[v] = triangle.vertices[v];
+                    
+                    // 变换顶点位置（MVP变换）
+                    litTriangle.vertices[v].position = transformVertex(triangle.vertices[v].position, mvpMatrix);
+                    
+                    // 计算光照（使用变换后的法线和位置） //在顶点阶段计算，在片元插值
+                    Vec3 worldPos = transformNoDiv(modelMatrix, triangle.vertices[v].position);
+                    litTriangle.vertices[v].color = calculateLighting(
+                        Vertex(worldPos, transformedNormal, triangle.vertices[v].texCoord, triangle.vertices[v].color),
+                        material, 
+                        transformNoDiv(viewMatrix, eyePos, 0.0f) // 将观察位置变换到世界空间
+                    );
+                }
+                
+                // 绘制带光照的三角形
+                drawTriangle(litTriangle);
+            } else {
+                // 不使用光照，直接绘制
+                Triangle triangle(
+                    Vertex(cube.vertices[indices[0]], cube.faceColors[face]),
+                    Vertex(cube.vertices[indices[1]], cube.faceColors[face]),
+                    Vertex(cube.vertices[indices[2]], cube.faceColors[face])
+                );
+                drawTriangle(triangle, mvpMatrix);
+            }
         }
     }
+}
+
+// 计算光照颜色
+Color Renderer::calculateLighting(const Vertex& vertex, const Material& material, const Vec3& eyePos)
+{
+    if (!lightingEnabled) {
+        return vertex.color; // 如果未启用光照，直接返回顶点颜色
+    }
+
+    // 计算法向量（确保已归一化）
+    float3 normal = normalize(vertex.normal);
+    
+    // 计算从顶点到光源的方向向量（确保已归一化）
+    float3 lightDir = normalize(light.position - vertex.position);
+    
+    // 计算从顶点到观察者的方向向量（确保已归一化）
+    float3 viewDir = normalize(eyePos - vertex.position);
+    
+    // 计算半程向量
+    float3 halfwayDir = normalize(lightDir + viewDir);
+    
+    // 计算环境光分量
+    float3 ambient =material.ambient * light.color * light.ambientIntensity;
+    
+    // 计算漫反射分量（考虑光照角度）
+    float diff = std::max(dot(normal, lightDir), 0.0f);
+    float3 diffuse =material.diffuse * light.color * (diff * light.intensity);
+    
+    // 计算镜面反射分量（考虑视角）
+    float spec = std::pow(std::max(dot(normal, halfwayDir), 0.0f), material.shininess);
+    float3 specular =material.specular * light.color * spec * light.intensity;;
+    
+    // 合并所有光照分量
+    float resultR = ambient.x + diffuse.x + specular.x;
+    float resultG = ambient.y + diffuse.y + specular.y;
+    float resultB = ambient.z + diffuse.z + specular.z;
+    
+    // 确保结果在 [0,1] 范围内
+    resultR = std::min(resultR, 1.0f);
+    resultG = std::min(resultG, 1.0f);
+    resultB = std::min(resultB, 1.0f);
+    
+    // 结合原始顶点颜色
+    float vertexColorFactor = 0.5f; // 可调整原始顶点颜色的影响因子
+    float r = resultR * (vertex.color.r / 255.0f) * vertexColorFactor + resultR * (1.0f - vertexColorFactor);
+    float g = resultG * (vertex.color.g / 255.0f) * vertexColorFactor + resultG * (1.0f - vertexColorFactor);
+    float b = resultB * (vertex.color.b / 255.0f) * vertexColorFactor + resultB * (1.0f - vertexColorFactor);
+    
+    // 将 [0,1] 范围的浮点值转换为 [0,255] 范围的整数
+    Color finalColor(
+        static_cast<uint8_t>(r * 255.0f),
+        static_cast<uint8_t>(g * 255.0f),
+        static_cast<uint8_t>(b * 255.0f),
+        vertex.color.a
+    );
+    
+    return finalColor;
 }
 
