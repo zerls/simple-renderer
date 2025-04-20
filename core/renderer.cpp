@@ -280,14 +280,46 @@ void Renderer::rasterizeTriangle(const Triangle& triangle, std::shared_ptr<IShad
     }
 }
 
-// 绘制Mesh的实现 - 简化版本，使用Mesh的draw方法
+// 绘制网格 - 更新版本（使用着色器）
+// 绘制网格 - 完全重写版本（使用Mesh自身的着色器）
+// 重新实现的 drawMesh 方法，不再依赖 Mesh::draw
 void Renderer::drawMesh(const std::shared_ptr<Mesh> &mesh)
 {
     if (!mesh) {
         return;
     }
-    // 调用Mesh的绘制方法
-    mesh->draw(*this);
+
+    // 检查是否有着色器设置
+    std::shared_ptr<IShader> activeShader = mesh->getShader() ? mesh->getShader() : shader;
+    
+    if (!activeShader) {
+        std::cerr << "错误：没有设置着色器，无法渲染网格。" << std::endl;
+        return;
+    }
+    
+    // 设置着色器的统一变量
+    ShaderUniforms uniforms;
+    uniforms.modelMatrix = modelMatrix;
+    uniforms.viewMatrix = viewMatrix;
+    uniforms.projMatrix = projMatrix;
+    uniforms.mvpMatrix = getMVPMatrix();
+    uniforms.eyePosition = eyePosWS;
+    uniforms.light = light;
+    uniforms.material = mesh->getMaterial();
+    
+    activeShader->setUniforms(uniforms);
+    
+    // 处理每个面
+    for (const Face& face : mesh->faces) {
+        // 将面转换为一个或多个三角形
+        std::vector<Triangle> triangles = mesh->triangulate(face);
+        
+        // 处理每个三角形
+        for (const Triangle& tri : triangles) {
+            // 直接使用栅格化函数渲染三角形
+            rasterizeTriangle(tri, activeShader);
+        }
+    }
 }
 
 
@@ -304,55 +336,6 @@ void renderScene(Renderer &renderer, const std::vector<SceneObject> &objects)
         renderer.setModelMatrix(object.modelMatrix);
 
         // 绘制网格
-        object.mesh->draw(renderer);
+        renderer.drawMesh(object.mesh);
     }
 }
-
-// 保存深度图到PPM文件
-void Renderer::saveDepthMap(const std::string &filename, float nearPlane, float farPlane)
-{
-    std::ofstream file(filename, std::ios::binary);
-    if (!file)
-    {
-        std::cerr << "无法创建文件：" << filename << std::endl;
-        return;
-    }
-
-    int width = frameBuffer->getWidth();
-    int height = frameBuffer->getHeight();
-
-    // 写入PPM文件头
-    file << "P6\n"
-         << width << " " << height << "\n255\n";
-
-    // 准备临时缓冲区
-    std::vector<uint8_t> depthPixels(width * height * 3);
-
-    // 为了可视化，我们将深度值映射到灰度值
-    for (int y = 0; y < height; ++y)
-    {
-        for (int x = 0; x < width; ++x)
-        {
-            float depth = frameBuffer->getDepth(x, y);
-
-            // 将深度值从 [nearPlane, farPlane] 映射到 [0, 1]
-            float normalizedDepth = (depth - nearPlane) / (farPlane - nearPlane);
-            normalizedDepth = std::max(0.0f, std::min(1.0f, normalizedDepth));
-
-            // 将归一化的深度值转换为灰度值
-            uint8_t grayValue = static_cast<uint8_t>((1.0f - normalizedDepth) * 255.0f);
-
-            // 设置RGB值（相同的灰度值）
-            int index = (y * width + x) * 3;
-            depthPixels[index] = grayValue;     // R
-            depthPixels[index + 1] = grayValue; // G
-            depthPixels[index + 2] = grayValue; // B
-        }
-    }
-
-    // 写入像素数据
-    file.write(reinterpret_cast<const char *>(depthPixels.data()), depthPixels.size());
-
-    std::cout << "深度图已保存到 " << filename << std::endl;
-}
-

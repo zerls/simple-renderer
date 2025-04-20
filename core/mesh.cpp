@@ -149,34 +149,6 @@ void Mesh::centerize() {
     }
 }
 
-// 将网格缩放到单位立方体大小
-// void Mesh::normaliz()e() {
-//     Vec3f min, max;
-//     calculateBoundingBox(min, max);
-    
-//     // 计算模型的尺寸
-//     float siz()eX = max.x - min.x;
-//     float siz()eY = max.y - min.y;
-//     float siz()eZ() = max.z - min.z;
-    
-//     // 找出最大尺寸
-//     float maxSiz()e = std::max(std::max(siz()eX, siz()eY), siz()eZ());
-    
-//     if (maxSiz()e < 0.0001f) {
-//         return; // 防止除以零
-//     }
-    
-//     // 缩放因子
-//     float scale = 1.0f / maxSiz()e;
-    
-//     // 缩放所有顶点
-//     for (Vec3f& v : vertices) {
-//         v.x *= scale;
-//         v.y *= scale;
-//         v.z *= scale;
-//     }
-// }
-
 // 将面转换为三角形
 std::vector<Triangle> Mesh::triangulate(const Face& face) const {
     std::vector<Triangle> triangles;
@@ -250,49 +222,6 @@ std::vector<Triangle> Mesh::triangulate(const Face& face) const {
 // 设置Mesh的着色器
 void Mesh::setShader(std::shared_ptr<IShader> shader) {
     this->shader = shader;
-}
-
-// 绘制网格 - 修复版本
-// 绘制网格 - 更新版本（使用着色器）
-// mesh.cpp 中新增的方法和修改的方法
-// 绘制网格 - 完全重写版本（使用Mesh自身的着色器）
-void Mesh::draw(Renderer& renderer) const {
-    // 检查是否有着色器设置
-    std::shared_ptr<IShader> activeShader = shader ? shader : renderer.getShader();
-    
-    if (!activeShader) {
-        std::cerr << "错误：没有设置着色器，无法渲染网格。" << std::endl;
-        return;
-    }
-    
-    // 获取相机在世界空间中的位置（用于光照计算）
-    // Vec3f eyePos = Vec3f(0, 0, 0); // 在观察空间中，相机位于原点
-    // Vec3f worldEyePos = transformNoDiv(renderer.getViewMatrix(), eyePos, 0.0f);
-    // std::cout << "worldEyePos: " << worldEyePos.x << worldEyePos.y<<worldEyePos.z <<std::endl;  // 默认格式
-
-    // 设置着色器的统一变量
-    ShaderUniforms uniforms;
-    uniforms.modelMatrix = renderer.getModelMatrix();
-    uniforms.viewMatrix = renderer.getViewMatrix();
-    uniforms.projMatrix = renderer.getProjMatrix();
-    uniforms.mvpMatrix = renderer.getMVPMatrix();
-    uniforms.eyePosition = renderer.getEye();
-    uniforms.light = renderer.getLight();
-    uniforms.material = material;
-    
-    activeShader->setUniforms(uniforms);
-    
-    // 处理每个面
-    for (const Face& face : faces) {
-        // 将面转换为一个或多个三角形
-        std::vector<Triangle> triangles = triangulate(face);
-        
-        // 处理每个三角形
-        for (const Triangle& tri : triangles) {
-            // 直接使用栅格化函数渲染三角形
-            renderer.rasterizeTriangle(tri, activeShader);
-        }
-    }
 }
 
 // 加载OBJ文件

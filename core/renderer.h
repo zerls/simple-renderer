@@ -17,34 +17,6 @@ struct ShaderUniforms;
 struct Varyings;
 
 
-// 顶点结构体
-struct Vertex
-{
-    Vec3f position; // 位置
-    Vec3f normal;   // 法线
-    Vec2f texCoord; // 纹理坐标
-    Color color;   // 顶点颜色
-
-    Vertex() = default;
-    Vertex(const Vec3f &pos, const Color &col) : position(pos), color(col) {}
-    Vertex(const Vec3f &pos, const Vec3f &norm, const Vec2f &tex, const Color &col) : position(pos), normal(norm), texCoord(tex), color(col) {}
-};
-
-// 三角形结构体
-struct Triangle
-{
-    std::array<Vertex, 3> vertices;
-
-    Triangle() = default;
-    Triangle(const Vertex &v1, const Vertex &v2, const Vertex &v3)
-    {
-        vertices[0] = v1;
-        vertices[1] = v2;
-        vertices[2] = v3;
-    }
-};
-
-
 // 帧缓冲类
 class FrameBuffer
 {
@@ -131,9 +103,6 @@ public:
     //世界视角相关方法
     void setEye(const Vec3f eyePosWS) { this->eyePosWS = eyePosWS; }
     Vec3f getEye() const{return eyePosWS;}
-
-    // 保存深度图到PPM文件
-    void saveDepthMap(const std::string &filename, float nearPlane, float farPlane);
 
 private:
     std::unique_ptr<FrameBuffer> frameBuffer;

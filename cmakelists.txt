@@ -9,10 +9,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(SRC_LIST 
     main.cpp
     test.cpp
-    core/maths.cpp
+    lib/maths.cpp
     core/renderer.cpp
     core/mesh.cpp
-    shader/shader.cpp  # ← 手动指定子目录文件
+    # shader/shader.cpp  
+    shader/basic_shader.cpp  # ← 手动指定子目录文件
+    shader/phong_shader.cpp  
+    shader/toon_shader.cpp  
 )
 
 add_executable(SimpleRenderer ${SRC_LIST})
@@ -20,6 +23,7 @@ add_executable(SimpleRenderer ${SRC_LIST})
 # 添加头文件目录
 target_include_directories(SimpleRenderer PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/core
     ${CMAKE_CURRENT_SOURCE_DIR}/shader
 )
