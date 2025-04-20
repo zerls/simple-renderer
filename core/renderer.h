@@ -12,6 +12,10 @@
 
 // 前向声明
 class Mesh;
+class IShader;
+struct ShaderUniforms;
+struct Varyings;
+
 
 // 顶点结构体
 struct Vertex
@@ -88,20 +92,13 @@ public:
     Renderer(int width, int height);
     ~Renderer() = default;
 
-    bool lightingEnabled;
-    Light light;
-    
-    // 设置当前着色器
+    // 设置当前着色器（全局默认着色器）
     void setShader(std::shared_ptr<IShader> shader) { this->shader = shader; }
     std::shared_ptr<IShader> getShader() const { return shader; }
 
-    // 栅格化三角形（使用当前着色器）
-    void rasterizeTriangle(const Triangle& triangle);
+    // 栅格化三角形（使用指定的着色器）
+    void rasterizeTriangle(const Triangle& triangle, std::shared_ptr<IShader> shader);
     
-    // 旧版绘制三角形函数 - 兼容性保留
-    void drawTriangle(const Triangle &triangle, const Matrix4x4f &mvpMatrix);
-    void drawTriangle(const Triangle &triangle);
-
     // 清除屏幕
     void clear(const Color &color = Color(0, 0, 0, 255));
 
@@ -125,13 +122,12 @@ public:
     // 获取帧缓冲
     const FrameBuffer &getFrameBuffer() const { return *frameBuffer; }
 
-    // 绘制网格（新增）
+    // 绘制网格
     void drawMesh(const std::shared_ptr<Mesh> &mesh);
 
-    // 启用光照
-    void enableLighting(bool b) { this->lightingEnabled = b; };
-    Color calculateLighting(const Vertex &vertex, const Material &material, const Vec3f &eyePos);
-    void setLight(Light &light) { this->light = light; };
+    // 光照相关方法
+    void setLight(const Light &light) { this->light = light; }
+    Light getLight() const { return light; }
 
     // 保存深度图到PPM文件
     void saveDepthMap(const std::string &filename, float nearPlane, float farPlane);
@@ -143,4 +139,17 @@ private:
     Matrix4x4f projMatrix;  // 投影变换
     
     std::shared_ptr<IShader> shader; // 当前着色器
+    Light light; // 光源
 };
+
+// 封装场景对象
+struct SceneObject
+{
+    std::shared_ptr<Mesh> mesh;
+    Matrix4x4f modelMatrix;
+
+    SceneObject(std::shared_ptr<Mesh> mesh, const Matrix4x4f &matrix)
+        : mesh(mesh), modelMatrix(matrix) {}
+};
+
+void renderScene(Renderer &renderer, const std::vector<SceneObject> &objects);

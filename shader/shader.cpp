@@ -13,3 +13,8 @@ std::shared_ptr<IShader> createBasicShader() {
 std::shared_ptr<IShader> createPhongShader() {
     return std::make_shared<PhongShader>();
 }
+
+// 创建Toon着色器
+std::shared_ptr<IShader> createToonShader() {
+    return std::make_shared<ToonShader>();
+}

@@ -245,34 +245,41 @@ std::vector<Triangle> Mesh::triangulate(const Face& face) const {
     return triangles;
 }
 
+
+
+// 设置Mesh的着色器
+void Mesh::setShader(std::shared_ptr<IShader> shader) {
+    this->shader = shader;
+}
+
 // 绘制网格 - 修复版本
 // 绘制网格 - 更新版本（使用着色器）
+// mesh.cpp 中新增的方法和修改的方法
+// 绘制网格 - 完全重写版本（使用Mesh自身的着色器）
 void Mesh::draw(Renderer& renderer) const {
-    // 获取当前的MVP矩阵
-    Matrix4x4f mvpMatrix = renderer.getMVPMatrix();
+    // 检查是否有着色器设置
+    std::shared_ptr<IShader> activeShader = shader ? shader : renderer.getShader();
     
-    // 在观察空间中，摄像机位于原点
-    Vec3f eyePos = Vec3f(0, 0, 0);
+    if (!activeShader) {
+        std::cerr << "错误：没有设置着色器，无法渲染网格。" << std::endl;
+        return;
+    }
     
-    // 获取世界空间中的相机位置（用于光照计算）
+    // 获取相机在世界空间中的位置（用于光照计算）
+    Vec3f eyePos = Vec3f(0, 0, 0); // 在观察空间中，相机位于原点
     Vec3f worldEyePos = transformNoDiv(renderer.getViewMatrix(), eyePos, 0.0f);
     
-    // 获取当前着色器
-    std::shared_ptr<IShader> shader = renderer.getShader();
+    // 设置着色器的统一变量
+    ShaderUniforms uniforms;
+    uniforms.modelMatrix = renderer.getModelMatrix();
+    uniforms.viewMatrix = renderer.getViewMatrix();
+    uniforms.projMatrix = renderer.getProjMatrix();
+    uniforms.mvpMatrix = renderer.getMVPMatrix();
+    uniforms.eyePosition = worldEyePos;
+    uniforms.light = renderer.getLight();
+    uniforms.material = material;
     
-    // 如果有着色器，设置着色器的统一变量
-    if (shader) {
-        ShaderUniforms uniforms;
-        uniforms.modelMatrix = renderer.getModelMatrix();
-        uniforms.viewMatrix = renderer.getViewMatrix();
-        uniforms.projMatrix = renderer.getProjMatrix();
-        uniforms.mvpMatrix = mvpMatrix;
-        uniforms.eyePosition = worldEyePos;
-        uniforms.light = renderer.light;
-        uniforms.material = material;
-        
-        shader->setUniforms(uniforms);
-    }
+    activeShader->setUniforms(uniforms);
     
     // 处理每个面
     for (const Face& face : faces) {
@@ -281,8 +288,8 @@ void Mesh::draw(Renderer& renderer) const {
         
         // 处理每个三角形
         for (const Triangle& tri : triangles) {
-            // 使用新的栅格化方法（如果有着色器）或旧的绘制方法
-            renderer.rasterizeTriangle(tri);
+            // 直接使用栅格化函数渲染三角形
+            renderer.rasterizeTriangle(tri, activeShader);
         }
     }
 }

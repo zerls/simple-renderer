@@ -106,22 +106,28 @@ void FrameBuffer::clear(const Color &color, float depth)
 // 更新构造函数以初始化变换矩阵
 // 更新构造函数以初始化变换矩阵和光照
 // 更新构造函数以初始化着色器
+// Renderer 构造函数
 Renderer::Renderer(int width, int height)
     : frameBuffer(std::make_unique<FrameBuffer>(width, height)),
       modelMatrix(Matrix4x4f::identity()),
       viewMatrix(Matrix4x4f::identity()),
       projMatrix(Matrix4x4f::identity()),
-      lightingEnabled(false),
       shader(nullptr)  // 初始化着色器为空
 {
     // 初始化默认光源
     this->light = Light(Vec3f(0.0f, 0.0f, -1.0f), Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.2f);
 }
 
-
 void Renderer::clear(const Color &color)
 {
     frameBuffer->clear(color);
+}
+
+// 顶点变换 - MVP变换和屏幕映射
+Vec3f Renderer::transformVertex(const Vec3f &position, const Matrix4x4f &mvpMatrix)
+{
+    // 应用MVP矩阵变换
+    return transform(mvpMatrix, position);
 }
 
 // 屏幕映射函数
@@ -134,25 +140,13 @@ Vec3f Renderer::screenMapping(const Vec3f& clipPos) {
     return Vec3f(screenX, screenY, clipPos.z);
 }
 
-// 新的三角形栅格化函数（使用着色器）
-void Renderer::rasterizeTriangle(const Triangle& triangle) {
-    // 如果没有设置着色器，则无法渲染
+// 更新的三角形栅格化函数（使用外部提供的着色器）
+void Renderer::rasterizeTriangle(const Triangle& triangle, std::shared_ptr<IShader> shader) {
+    // 如果没有有效的着色器，则直接返回
     if (!shader) {
-        std::cerr << "错误：未设置着色器，无法渲染三角形。" << std::endl;
+        std::cerr << "错误：未提供有效的着色器，无法渲染三角形。" << std::endl;
         return;
     }
-    
-    // 设置着色器的统一变量
-    ShaderUniforms uniforms;
-    uniforms.modelMatrix = modelMatrix;
-    uniforms.viewMatrix = viewMatrix;
-    uniforms.projMatrix = projMatrix;
-    uniforms.mvpMatrix = getMVPMatrix();
-    uniforms.eyePosition = transformNoDiv(viewMatrix, Vec3f(0, 0, 0), 0.0f); // 相机位置（世界空间）
-    uniforms.light = light;
-    uniforms.material = Material(); // 默认材质，实际应从三角形或网格获取
-    
-    shader->setUniforms(uniforms);
     
     // 对每个顶点运行顶点着色器
     std::array<Vec3f, 3> clipPositions;
@@ -246,6 +240,9 @@ void Renderer::rasterizeTriangle(const Triangle& triangle) {
                                               lambda1 * varyings[1].normal.z * w1 + 
                                               lambda2 * varyings[2].normal.z * w2) * w_correct;
                 
+                // 归一化插值后的法线
+                interpolatedVaryings.normal = normalize(interpolatedVaryings.normal);
+                
                 // 透视校正插值纹理坐标
                 interpolatedVaryings.texCoord.x = (lambda0 * varyings[0].texCoord.x * w0 + 
                                                 lambda1 * varyings[1].texCoord.x * w1 + 
@@ -283,89 +280,32 @@ void Renderer::rasterizeTriangle(const Triangle& triangle) {
     }
 }
 
-// 顶点变换 - MVP变换和屏幕映射
-Vec3f Renderer::transformVertex(const Vec3f &position, const Matrix4x4f &mvpMatrix)
-{
-    // 应用MVP矩阵变换
-    Vec3f clipPos = transform(mvpMatrix, position);
-
-    // 屏幕映射 - 变换到屏幕坐标系
-    float screenX = (clipPos.x + 1.0f) * 0.5f * frameBuffer->getWidth();
-    float screenY = (1.0f - clipPos.y) * 0.5f * frameBuffer->getHeight(); // 注意Y轴翻转
-
-    // z值保持不变(用于深度缓冲)
-    return Vec3f(screenX, screenY, clipPos.z);
-}
-
-
-// 计算光照颜色
-Color Renderer::calculateLighting(const Vertex &vertex, const Material &material, const Vec3f &eyePos)
-{
-    if (!lightingEnabled)
-    {
-        return vertex.color; // 如果未启用光照，直接返回顶点颜色
-    }
-
-    // 计算法向量（确保已归一化）
-    float3 normal = normalize(vertex.normal);
-
-    // 计算从顶点到光源的方向向量（确保已归一化）
-    float3 lightDir = normalize(light.position - vertex.position);
-
-    // 计算从顶点到观察者的方向向量（确保已归一化）
-    float3 viewDir = normalize(eyePos - vertex.position);
-
-    // 计算半程向量
-    float3 halfwayDir = normalize(lightDir + viewDir);
-
-    // 计算环境光分量
-    float3 ambient = material.ambient * light.color * light.ambientIntensity;
-
-    // 计算漫反射分量（考虑光照角度）
-    float diff = std::max(dot(normal, lightDir), 0.0f);
-    float3 diffuse = material.diffuse * light.color * (diff * light.intensity);
-
-    // 计算镜面反射分量（考虑视角）
-    float spec = std::pow(std::max(dot(normal, halfwayDir), 0.0f), material.shininess);
-    float3 specular = material.specular * light.color * spec * light.intensity;
-    
-
-    // 合并所有光照分量
-    // float3 result =ambient +diffuse+specular;
-    float resultR = ambient.x + diffuse.x + specular.x;
-    float resultG = ambient.y + diffuse.y + specular.y;
-    float resultB = ambient.z + diffuse.z + specular.z;
-
-    // 确保结果在 [0,1] 范围内
-    resultR = std::min(resultR, 1.0f);
-    resultG = std::min(resultG, 1.0f);
-    resultB = std::min(resultB, 1.0f);
-
-    // 结合原始顶点颜色
-    float vertexColorFactor = 0.5f; // 可调整原始顶点颜色的影响因子
-    float r = resultR * (vertex.color.r / 255.0f) * vertexColorFactor + resultR * (1.0f - vertexColorFactor);
-    float g = resultG * (vertex.color.g / 255.0f) * vertexColorFactor + resultG * (1.0f - vertexColorFactor);
-    float b = resultB * (vertex.color.b / 255.0f) * vertexColorFactor + resultB * (1.0f - vertexColorFactor);
-
-    // 将 [0,1] 范围的浮点值转换为 [0,255] 范围的整数
-    Color finalColor(
-        static_cast<uint8_t>(r * 255.0f),
-        static_cast<uint8_t>(g * 255.0f),
-        static_cast<uint8_t>(b * 255.0f),
-        vertex.color.a);
-
-    return finalColor;
-}
-
-// 绘制Mesh的实现
+// 绘制Mesh的实现 - 简化版本，使用Mesh的draw方法
 void Renderer::drawMesh(const std::shared_ptr<Mesh> &mesh)
 {
-    if (!mesh)
-    {
+    if (!mesh) {
         return;
     }
     // 调用Mesh的绘制方法
     mesh->draw(*this);
+}
+
+
+// 渲染一个场景，包含多个对象
+void renderScene(Renderer &renderer, const std::vector<SceneObject> &objects)
+{
+    // 清除屏幕
+    renderer.clear(Color(40, 40, 60)); // 深蓝灰色背景
+
+    // 绘制每个对象
+    for (const auto &object : objects)
+    {
+        // 设置模型矩阵
+        renderer.setModelMatrix(object.modelMatrix);
+
+        // 绘制网格
+        object.mesh->draw(renderer);
+    }
 }
 
 // 保存深度图到PPM文件
@@ -415,3 +355,4 @@ void Renderer::saveDepthMap(const std::string &filename, float nearPlane, float 
 
     std::cout << "深度图已保存到 " << filename << std::endl;
 }
+

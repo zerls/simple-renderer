@@ -8,7 +8,11 @@
 #include <memory>
 #include "maths.h"
 #include "renderer.h"
+#include "shader.h"
 
+// 前向声明以避免循环依赖
+class Renderer;
+class IShader;
 
 
 // 定义面的结构
@@ -34,6 +38,12 @@ public:
     
     // 设置网格材质
     void setMaterial(const Material& mat);
+    
+    // 设置网格着色器
+    void setShader(std::shared_ptr<IShader> shader);
+    
+    // 获取网格着色器
+    std::shared_ptr<IShader> getShader() const { return shader; }
     
     // 计算面法线（如果OBJ文件没有提供法线）
     void calculateFaceNormals();
@@ -62,9 +72,6 @@ public:
     // 中心化网格（使其中心位于原点）
     void centerize();
     
-    // 缩放网格使其适合单位立方体
-    // void normalize();
-    
     // 将这些数据成员修改为public，以便在实现中访问
     std::vector<Vec3f> vertices;         // 顶点
     std::vector<Vec2f> texCoords;        // 纹理坐标
@@ -76,6 +83,9 @@ public:
 private:
     // 将面转换为三角形（如果面有多于3个顶点）
     std::vector<Triangle> triangulate(const Face& face) const;
+    
+    // 添加着色器成员
+    std::shared_ptr<IShader> shader;    // 网格专用着色器
 };
 
 // OBJ文件加载函数

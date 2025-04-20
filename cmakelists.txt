@@ -6,15 +6,20 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 添加可执行文件
-add_executable(SimpleRenderer
-    maths.cpp
-    test.cpp
+set(SRC_LIST 
     main.cpp
-    renderer.cpp
-    shader.cpp
-    mesh.cpp
-    
+    test.cpp
+    core/maths.cpp
+    core/renderer.cpp
+    core/mesh.cpp
+    shader/shader.cpp  # ← 手动指定子目录文件
 )
 
+add_executable(SimpleRenderer ${SRC_LIST})
+
 # 添加头文件目录
-target_include_directories(SimpleRenderer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(SimpleRenderer PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/shader
+)
