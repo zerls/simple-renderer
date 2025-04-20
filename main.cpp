@@ -1,11 +1,12 @@
 // main.cpp
-// 测试光栅化渲染器的主程序
+// 测试光栅化渲染器的主程序（更新版本）
 #include "renderer.h"
 #include <iostream>
 #include <fstream>
 #include <string>
 #include "mesh.h"
 #include "test.h"
+#include "shader.h"
 
 
 int main() {
@@ -15,13 +16,13 @@ int main() {
     // 创建渲染器
     Renderer renderer(WIDTH, HEIGHT);
 
+    
     // 创建一个简单的OBJ文件用于测试
     std::string testObjFile = "box_sphere.obj";
     
-    // 加载并渲染OBJ模型
+    // 加载并渲染OBJ模型（使用Phong着色器）
+    std::cout << "渲染OBJ模型，使用Phong着色器..." << std::endl;
     DrawOBJModel(renderer, testObjFile);
-    
-    // 以下是原来的测试代码，可以根据需要注释或取消注释
     
     std::cout << "渲染完成!" << std::endl;
     

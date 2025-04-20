@@ -32,6 +32,7 @@ void saveToPPM(const std::string& filename, const FrameBuffer& frameBuffer) {
 
 // 新增：加载并绘制OBJ模型
 // 修复后的 DrawOBJModel 函数
+// 修改后的 DrawOBJModel 函数
 void DrawOBJModel(Renderer& renderer, const std::string& filename)
 {
     // 设置相机与投影
@@ -78,8 +79,11 @@ void DrawOBJModel(Renderer& renderer, const std::string& filename)
     Light light(Vec3(2.0f, 2.0f, 2.0f), Vec3(1.0f, 1.0f, 1.0f), 1.2f, 0.3f);
     renderer.setLight(light);
     
-    // 启用光照
-    renderer.enableLighting(true);
+    // 使用Phong着色器代替旧的光照系统
+    std::shared_ptr<IShader> phongShader = createPhongShader();
+    std::shared_ptr<IShader> basicShader = createBasicShader();
+    renderer.setShader(phongShader);
+    // renderer.setShader(basicShader);
     
     // 绘制模型
     mesh->draw(renderer);

@@ -9,10 +9,7 @@
 #include "maths.h"
 #include "renderer.h"
 
-// 添加辅助函数声明
-Vec3f transform(const Matrix4x4f& matrix, const Vec3f& vector, float w = 1.0f);
-Vec3f transformNoDiv(const Matrix4x4f& matrix, const Vec3f& vector, float w = 1.0f);
-Vec3f transformNormal(const Matrix4x4f& modelMatrix, const Vec3f& normal);
+
 
 // 定义面的结构
 struct Face {

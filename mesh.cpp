@@ -246,6 +246,7 @@ std::vector<Triangle> Mesh::triangulate(const Face& face) const {
 }
 
 // 绘制网格 - 修复版本
+// 绘制网格 - 更新版本（使用着色器）
 void Mesh::draw(Renderer& renderer) const {
     // 获取当前的MVP矩阵
     Matrix4x4f mvpMatrix = renderer.getMVPMatrix();
@@ -256,39 +257,32 @@ void Mesh::draw(Renderer& renderer) const {
     // 获取世界空间中的相机位置（用于光照计算）
     Vec3f worldEyePos = transformNoDiv(renderer.getViewMatrix(), eyePos, 0.0f);
     
+    // 获取当前着色器
+    std::shared_ptr<IShader> shader = renderer.getShader();
+    
+    // 如果有着色器，设置着色器的统一变量
+    if (shader) {
+        ShaderUniforms uniforms;
+        uniforms.modelMatrix = renderer.getModelMatrix();
+        uniforms.viewMatrix = renderer.getViewMatrix();
+        uniforms.projMatrix = renderer.getProjMatrix();
+        uniforms.mvpMatrix = mvpMatrix;
+        uniforms.eyePosition = worldEyePos;
+        uniforms.light = renderer.light;
+        uniforms.material = material;
+        
+        shader->setUniforms(uniforms);
+    }
+    
+    // 处理每个面
     for (const Face& face : faces) {
         // 将面转换为一个或多个三角形
         std::vector<Triangle> triangles = triangulate(face);
         
+        // 处理每个三角形
         for (const Triangle& tri : triangles) {
-            if (renderer.lightingEnabled) {
-                // 创建带光照的三角形
-                Triangle litTriangle;
-                
-                for (int v = 0; v < 3; ++v) {
-                    // 复制顶点数据
-                    litTriangle.vertices[v] = tri.vertices[v];
-                    
-                    // 变换顶点位置和法线
-                    Vec3f worldPos = transformNoDiv(renderer.getModelMatrix(), tri.vertices[v].position);
-                    Vec3f transformedNormal = transformNormal(renderer.getModelMatrix(), tri.vertices[v].normal);
-                    
-                    // 创建带变换后法线的顶点
-                    Vertex worldVertex(worldPos, transformedNormal, tri.vertices[v].texCoord, tri.vertices[v].color);
-                    
-                    // 计算光照
-                    litTriangle.vertices[v].color = renderer.calculateLighting(worldVertex, material, worldEyePos);
-                    
-                    // 变换顶点位置到屏幕空间
-                    litTriangle.vertices[v].position = renderer.transformVertex(tri.vertices[v].position, mvpMatrix);
-                }
-                
-                // 绘制带光照的三角形
-                renderer.drawTriangle(litTriangle);
-            } else {
-                // 不使用光照，直接绘制
-                renderer.drawTriangle(tri, mvpMatrix);
-            }
+            // 使用新的栅格化方法（如果有着色器）或旧的绘制方法
+            renderer.rasterizeTriangle(tri);
         }
     }
 }
@@ -375,40 +369,4 @@ std::shared_ptr<Mesh> loadOBJ(const std::string& filename) {
               << mesh->getFaceCount() << " 个面。" << std::endl;
     
     return mesh;
-}
-
-// 矩阵-向量变换函数
-Vec3f transform(const Matrix4x4f& matrix, const Vec3f& vector, float w ) {
-    float x = vector.x * matrix.m00 + vector.y * matrix.m01 + vector.z * matrix.m02 + w * matrix.m03;
-    float y = vector.x * matrix.m10 + vector.y * matrix.m11 + vector.z * matrix.m12 + w * matrix.m13;
-    float z = vector.x * matrix.m20 + vector.y * matrix.m21 + vector.z * matrix.m22 + w * matrix.m23;
-    float wOut = vector.x * matrix.m30 + vector.y * matrix.m31 + vector.z * matrix.m32 + w * matrix.m33;
-    
-    // 透视除法
-    if (std::abs(wOut) > 1e-6f) {
-        float invW = 1.0f / wOut;
-        return Vec3f(x * invW, y * invW, z * invW);
-    }
-    
-    return Vec3f(x, y, z);
-}
-
-
-// 添加辅助函数：transformNoDiv 和 transformNormal 的实现
-Vec3f transformNoDiv(const Matrix4x4f& matrix, const Vec3f& vector, float w) {
-    float x = vector.x * matrix.m00 + vector.y * matrix.m01 + vector.z * matrix.m02 + w * matrix.m03;
-    float y = vector.x * matrix.m10 + vector.y * matrix.m11 + vector.z * matrix.m12 + w * matrix.m13;
-    float z = vector.x * matrix.m20 + vector.y * matrix.m21 + vector.z * matrix.m22 + w * matrix.m23;
-    
-    return Vec3f(x, y, z);
-}
-
-Vec3f transformNormal(const Matrix4x4f& modelMatrix, const Vec3f& normal) {
-    // 简化实现: 假设模型矩阵只有旋转和均匀缩放，可以直接使用模型矩阵
-    Vec3f result;
-    result.x = normal.x * modelMatrix.m00 + normal.y * modelMatrix.m01 + normal.z * modelMatrix.m02;
-    result.y = normal.x * modelMatrix.m10 + normal.y * modelMatrix.m11 + normal.z * modelMatrix.m12;
-    result.z = normal.x * modelMatrix.m20 + normal.y * modelMatrix.m21 + normal.z * modelMatrix.m22;
-    
-    return normalize(result);
 }

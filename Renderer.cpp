@@ -105,54 +105,80 @@ void FrameBuffer::clear(const Color &color, float depth)
 // Renderer 实现
 // 更新构造函数以初始化变换矩阵
 // 更新构造函数以初始化变换矩阵和光照
+// 更新构造函数以初始化着色器
 Renderer::Renderer(int width, int height)
     : frameBuffer(std::make_unique<FrameBuffer>(width, height)),
       modelMatrix(Matrix4x4f::identity()),
       viewMatrix(Matrix4x4f::identity()),
       projMatrix(Matrix4x4f::identity()),
-      lightingEnabled(false)
+      lightingEnabled(false),
+      shader(nullptr)  // 初始化着色器为空
 {
     // 初始化默认光源
     this->light = Light(Vec3f(0.0f, 0.0f, -1.0f), Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.2f);
 }
 
+
 void Renderer::clear(const Color &color)
 {
     frameBuffer->clear(color);
 }
-// 绘制经过MVP变换的三角形
-void Renderer::drawTriangle(const Triangle &triangle, const Matrix4x4f &mvpMatrix)
-{
-    // 创建变换后的三角形
-    Triangle transformedTriangle;
 
-    // 变换每个顶点
-    for (int i = 0; i < 3; ++i)
-    {
-        Vertex &v = transformedTriangle.vertices[i];
-        v = triangle.vertices[i]; // 复制顶点其他属性
-
-        // 变换位置
-        v.position = transformVertex(triangle.vertices[i].position, mvpMatrix);
-    }
-
-    // 使用原始函数绘制变换后的三角形
-    drawTriangle(transformedTriangle);
+// 屏幕映射函数
+Vec3f Renderer::screenMapping(const Vec3f& clipPos) {
+    // 屏幕映射 - 变换到屏幕坐标系
+    float screenX = (clipPos.x + 1.0f) * 0.5f * frameBuffer->getWidth();
+    float screenY = (1.0f - clipPos.y) * 0.5f * frameBuffer->getHeight(); // 注意Y轴翻转
+    
+    // z值保持不变(用于深度缓冲)
+    return Vec3f(screenX, screenY, clipPos.z);
 }
 
-
-
-void Renderer::drawTriangle(const Triangle &triangle) {
-    // 提取三角形的三个顶点
-    const Vertex &v1 = triangle.vertices[0];
-    const Vertex &v2 = triangle.vertices[1];
-    const Vertex &v3 = triangle.vertices[2];
+// 新的三角形栅格化函数（使用着色器）
+void Renderer::rasterizeTriangle(const Triangle& triangle) {
+    // 如果没有设置着色器，则无法渲染
+    if (!shader) {
+        std::cerr << "错误：未设置着色器，无法渲染三角形。" << std::endl;
+        return;
+    }
+    
+    // 设置着色器的统一变量
+    ShaderUniforms uniforms;
+    uniforms.modelMatrix = modelMatrix;
+    uniforms.viewMatrix = viewMatrix;
+    uniforms.projMatrix = projMatrix;
+    uniforms.mvpMatrix = getMVPMatrix();
+    uniforms.eyePosition = transformNoDiv(viewMatrix, Vec3f(0, 0, 0), 0.0f); // 相机位置（世界空间）
+    uniforms.light = light;
+    uniforms.material = Material(); // 默认材质，实际应从三角形或网格获取
+    
+    shader->setUniforms(uniforms);
+    
+    // 对每个顶点运行顶点着色器
+    std::array<Vec3f, 3> clipPositions;
+    std::array<Vec3f, 3> screenPositions;
+    std::array<Varyings, 3> varyings;
+    
+    for (int i = 0; i < 3; ++i) {
+        // 创建顶点属性
+        VertexAttributes attributes;
+        attributes.position = triangle.vertices[i].position;
+        attributes.normal = triangle.vertices[i].normal;
+        attributes.texCoord = triangle.vertices[i].texCoord;
+        attributes.color = triangle.vertices[i].color;
+        
+        // 运行顶点着色器
+        clipPositions[i] = shader->vertexShader(attributes, varyings[i]);
+        
+        // 屏幕映射
+        screenPositions[i] = screenMapping(clipPositions[i]);
+    }
     
     // 找到三角形的包围盒
-    int minX = static_cast<int>(std::min({v1.position.x, v2.position.x, v3.position.x}));
-    int minY = static_cast<int>(std::min({v1.position.y, v2.position.y, v3.position.y}));
-    int maxX = static_cast<int>(std::ceil(std::max({v1.position.x, v2.position.x, v3.position.x})));
-    int maxY = static_cast<int>(std::ceil(std::max({v1.position.y, v2.position.y, v3.position.y})));
+    int minX = static_cast<int>(std::min({screenPositions[0].x, screenPositions[1].x, screenPositions[2].x}));
+    int minY = static_cast<int>(std::min({screenPositions[0].y, screenPositions[1].y, screenPositions[2].y}));
+    int maxX = static_cast<int>(std::ceil(std::max({screenPositions[0].x, screenPositions[1].x, screenPositions[2].x})));
+    int maxY = static_cast<int>(std::ceil(std::max({screenPositions[0].y, screenPositions[1].y, screenPositions[2].y})));
     
     // 裁剪到屏幕范围
     minX = std::max(0, minX);
@@ -161,44 +187,12 @@ void Renderer::drawTriangle(const Triangle &triangle) {
     maxY = std::min(frameBuffer->getHeight() - 1, maxY);
     
     // 获取顶点的屏幕坐标
-    float x0 = v1.position.x;
-    float y0 = v1.position.y;
-    float x1 = v2.position.x;
-    float y1 = v2.position.y;
-    float x2 = v3.position.x;
-    float y2 = v3.position.y;
-    
-    // 获取顶点的z坐标
-    float z0 = v1.position.z;
-    float z1 = v2.position.z;
-    float z2 = v3.position.z;
-    
-    // 透视正确插值需要顶点的w值（通常是1/z）
-    float w0 = 1.0f / v1.position.z; 
-    float w1 = 1.0f / v2.position.z;
-    float w2 = 1.0f / v3.position.z;
-    
-    // 预乘顶点颜色与w
-    Color c0w(
-        static_cast<uint8_t>(v1.color.r * w0),
-        static_cast<uint8_t>(v1.color.g * w0),
-        static_cast<uint8_t>(v1.color.b * w0),
-        static_cast<uint8_t>(v1.color.a * w0)
-    );
-    
-    Color c1w(
-        static_cast<uint8_t>(v2.color.r * w1),
-        static_cast<uint8_t>(v2.color.g * w1),
-        static_cast<uint8_t>(v2.color.b * w1),
-        static_cast<uint8_t>(v2.color.a * w1)
-    );
-    
-    Color c2w(
-        static_cast<uint8_t>(v3.color.r * w2),
-        static_cast<uint8_t>(v3.color.g * w2),
-        static_cast<uint8_t>(v3.color.b * w2),
-        static_cast<uint8_t>(v3.color.a * w2)
-    );
+    float x0 = screenPositions[0].x;
+    float y0 = screenPositions[0].y;
+    float x1 = screenPositions[1].x;
+    float y1 = screenPositions[1].y;
+    float x2 = screenPositions[2].x;
+    float y2 = screenPositions[2].y;
     
     // 计算面积的两倍（叉积）
     float area = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
@@ -207,6 +201,11 @@ void Renderer::drawTriangle(const Triangle &triangle) {
     if (std::abs(area) < 1e-6) {
         return;
     }
+    
+    // 透视校正插值需要的深度倒数
+    float w0 = 1.0f / varyings[0].depth;
+    float w1 = 1.0f / varyings[1].depth;
+    float w2 = 1.0f / varyings[2].depth;
     
     // 遍历包围盒中的每个像素
     for (int y = minY; y <= maxY; ++y) {
@@ -218,22 +217,67 @@ void Renderer::drawTriangle(const Triangle &triangle) {
             
             // 检查点是否在三角形内
             if (lambda0 >= 0 && lambda1 >= 0 && lambda2 >= 0) {
-                // 插值1/w
+                // 透视校正插值
                 float interpolated_w_inverse = lambda0 * w0 + lambda1 * w1 + lambda2 * w2;
+                float w_correct = 1.0f / interpolated_w_inverse;
                 
-                // 使用透视正确插值计算深度
-                float depth = (lambda0 * z0 * w0 + lambda1 * z1 * w1 + lambda2 * z2 * w2) / interpolated_w_inverse;
+                // 创建插值后的 Varyings 结构
+                Varyings interpolatedVaryings;
                 
-                // 透视正确插值顶点颜色
-                Color interpolated_color(
-                    static_cast<uint8_t>((lambda0 * c0w.r + lambda1 * c1w.r + lambda2 * c2w.r) / interpolated_w_inverse),
-                    static_cast<uint8_t>((lambda0 * c0w.g + lambda1 * c1w.g + lambda2 * c2w.g) / interpolated_w_inverse),
-                    static_cast<uint8_t>((lambda0 * c0w.b + lambda1 * c1w.b + lambda2 * c2w.b) / interpolated_w_inverse),
-                    static_cast<uint8_t>((lambda0 * c0w.a + lambda1 * c1w.a + lambda2 * c2w.a) / interpolated_w_inverse)
-                );
+                // 透视校正插值位置
+                interpolatedVaryings.position.x = (lambda0 * varyings[0].position.x * w0 + 
+                                                lambda1 * varyings[1].position.x * w1 + 
+                                                lambda2 * varyings[2].position.x * w2) * w_correct;
+                interpolatedVaryings.position.y = (lambda0 * varyings[0].position.y * w0 + 
+                                                lambda1 * varyings[1].position.y * w1 + 
+                                                lambda2 * varyings[2].position.y * w2) * w_correct;
+                interpolatedVaryings.position.z = (lambda0 * varyings[0].position.z * w0 + 
+                                                lambda1 * varyings[1].position.z * w1 + 
+                                                lambda2 * varyings[2].position.z * w2) * w_correct;
+                
+                // 透视校正插值法线
+                interpolatedVaryings.normal.x = (lambda0 * varyings[0].normal.x * w0 + 
+                                              lambda1 * varyings[1].normal.x * w1 + 
+                                              lambda2 * varyings[2].normal.x * w2) * w_correct;
+                interpolatedVaryings.normal.y = (lambda0 * varyings[0].normal.y * w0 + 
+                                              lambda1 * varyings[1].normal.y * w1 + 
+                                              lambda2 * varyings[2].normal.y * w2) * w_correct;
+                interpolatedVaryings.normal.z = (lambda0 * varyings[0].normal.z * w0 + 
+                                              lambda1 * varyings[1].normal.z * w1 + 
+                                              lambda2 * varyings[2].normal.z * w2) * w_correct;
+                
+                // 透视校正插值纹理坐标
+                interpolatedVaryings.texCoord.x = (lambda0 * varyings[0].texCoord.x * w0 + 
+                                                lambda1 * varyings[1].texCoord.x * w1 + 
+                                                lambda2 * varyings[2].texCoord.x * w2) * w_correct;
+                interpolatedVaryings.texCoord.y = (lambda0 * varyings[0].texCoord.y * w0 + 
+                                                lambda1 * varyings[1].texCoord.y * w1 + 
+                                                lambda2 * varyings[2].texCoord.y * w2) * w_correct;
+                
+                // 透视校正插值颜色
+                interpolatedVaryings.color.r = static_cast<uint8_t>((lambda0 * varyings[0].color.r * w0 + 
+                                                         lambda1 * varyings[1].color.r * w1 + 
+                                                         lambda2 * varyings[2].color.r * w2) * w_correct);
+                interpolatedVaryings.color.g = static_cast<uint8_t>((lambda0 * varyings[0].color.g * w0 + 
+                                                         lambda1 * varyings[1].color.g * w1 + 
+                                                         lambda2 * varyings[2].color.g * w2) * w_correct);
+                interpolatedVaryings.color.b = static_cast<uint8_t>((lambda0 * varyings[0].color.b * w0 + 
+                                                         lambda1 * varyings[1].color.b * w1 + 
+                                                         lambda2 * varyings[2].color.b * w2) * w_correct);
+                interpolatedVaryings.color.a = static_cast<uint8_t>((lambda0 * varyings[0].color.a * w0 + 
+                                                         lambda1 * varyings[1].color.a * w1 + 
+                                                         lambda2 * varyings[2].color.a * w2) * w_correct);
+                
+                // 插值深度
+                interpolatedVaryings.depth = (lambda0 * varyings[0].depth * w0 + 
+                                            lambda1 * varyings[1].depth * w1 + 
+                                            lambda2 * varyings[2].depth * w2) * w_correct;
+                
+                // 运行片段着色器
+                FragmentOutput fragmentOutput = shader->fragmentShader(interpolatedVaryings);
                 
                 // 设置像素颜色（包含深度测试）
-                frameBuffer->setPixel(x, y, depth, interpolated_color);
+                frameBuffer->setPixel(x, y, interpolatedVaryings.depth, fragmentOutput.color);
             }
         }
     }

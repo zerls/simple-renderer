@@ -1,5 +1,5 @@
 // Renderer.h
-// 基本光栅化渲染器的头文件
+// 基本光栅化渲染器的头文件 - 更新版本
 
 #pragma once
 
@@ -8,36 +8,10 @@
 #include <array>
 
 #include "maths.h"
+#include "shader.h"
 
 // 前向声明
 class Mesh;
-
-// 光照结构体
-struct Light
-{
-    Vec3f position;          // 光源位置
-    Vec3f color;             // 光源颜色
-    float intensity;        // 光源强度
-    float ambientIntensity; // 环境光强度
-
-    Light() : position(0, 0, 0), color(1, 1, 1), intensity(1.0f), ambientIntensity(0.1f) {}
-    Light(const Vec3f &pos, const Vec3f &col, float intens, float ambIntens)
-        : position(pos), color(col), intensity(intens), ambientIntensity(ambIntens) {}
-};
-
-// 材质结构体
-struct Material
-{
-    Vec3f ambient;    // 环境光反射系数
-    Vec3f diffuse;    // 漫反射系数
-    Vec3f specular;   // 镜面反射系数
-    float shininess; // 光泽度（用于镜面反射计算）
-
-    Material() : ambient(0.1f, 0.1f, 0.1f), diffuse(0.7f, 0.7f, 0.7f),
-                 specular(0.2f, 0.2f, 0.2f), shininess(32.0f) {}
-    Material(const Vec3f &amb, const Vec3f &diff, const Vec3f &spec, float shin)
-        : ambient(amb), diffuse(diff), specular(spec), shininess(shin) {}
-};
 
 // 顶点结构体
 struct Vertex
@@ -116,10 +90,16 @@ public:
 
     bool lightingEnabled;
     Light light;
-    // 绘制变换后的三角形
-    void drawTriangle(const Triangle &triangle, const Matrix4x4f &mvpMatrix);
+    
+    // 设置当前着色器
+    void setShader(std::shared_ptr<IShader> shader) { this->shader = shader; }
+    std::shared_ptr<IShader> getShader() const { return shader; }
 
-    // 绘制未变换的三角形(原始方法)
+    // 栅格化三角形（使用当前着色器）
+    void rasterizeTriangle(const Triangle& triangle);
+    
+    // 旧版绘制三角形函数 - 兼容性保留
+    void drawTriangle(const Triangle &triangle, const Matrix4x4f &mvpMatrix);
     void drawTriangle(const Triangle &triangle);
 
     // 清除屏幕
@@ -138,11 +118,12 @@ public:
 
     // 变换顶点位置
     Vec3f transformVertex(const Vec3f &position, const Matrix4x4f &mvpMatrix);
+    
+    // 屏幕映射函数
+    Vec3f screenMapping(const Vec3f& clipPos);
 
     // 获取帧缓冲
     const FrameBuffer &getFrameBuffer() const { return *frameBuffer; }
-
-    // void drawCube(const Cube &cube);
 
     // 绘制网格（新增）
     void drawMesh(const std::shared_ptr<Mesh> &mesh);
@@ -160,4 +141,6 @@ private:
     Matrix4x4f modelMatrix; // 模型变换
     Matrix4x4f viewMatrix;  // 视图变换
     Matrix4x4f projMatrix;  // 投影变换
+    
+    std::shared_ptr<IShader> shader; // 当前着色器
 };

@@ -6,6 +6,7 @@
 #include <array>
 #include <iostream>
 
+
 // 定义颜色结构体
 struct Color
 {
@@ -640,5 +641,10 @@ public:
 using Matrix3x3f = Matrix3x3<float>;
 using Matrix4x4f = Matrix4x4<float>;
 
+
+// 添加辅助函数声明
+Vec3f transform(const Matrix4x4f& matrix, const Vec3f& vector, float w = 1.0f);
+Vec3f transformNoDiv(const Matrix4x4f& matrix, const Vec3f& vector, float w = 1.0f);
+Vec3f transformNormal(const Matrix4x4f& modelMatrix, const Vec3f& normal);
 
 #endif
