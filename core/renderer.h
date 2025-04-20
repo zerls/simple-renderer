@@ -128,6 +128,9 @@ public:
     // 光照相关方法
     void setLight(const Light &light) { this->light = light; }
     Light getLight() const { return light; }
+    //世界视角相关方法
+    void setEye(const Vec3f eyePosWS) { this->eyePosWS = eyePosWS; }
+    Vec3f getEye() const{return eyePosWS;}
 
     // 保存深度图到PPM文件
     void saveDepthMap(const std::string &filename, float nearPlane, float farPlane);
@@ -140,6 +143,7 @@ private:
     
     std::shared_ptr<IShader> shader; // 当前着色器
     Light light; // 光源
+    Vec3f eyePosWS;
 };
 
 // 封装场景对象

@@ -10,32 +10,35 @@
 // 光照结构体
 struct Light
 {
-    Vec3f position;         // 光源位置
-    Vec3f color;            // 光源颜色
+    float3 position;         // 光源位置
+    float3 color;            // 光源颜色
     float intensity;        // 光源强度
     float ambientIntensity; // 环境光强度
 
     Light() : position(0, 0, 0), color(1, 1, 1), intensity(1.0f), ambientIntensity(0.1f) {}
-    Light(const Vec3f &pos, const Vec3f &col, float intens, float ambIntens)
+    Light(const float3 &pos, const float3 &col, float intens, float ambIntens)
         : position(pos), color(col), intensity(intens), ambientIntensity(ambIntens) {}
 };
 
 // 材质结构体
 struct Material
 {
-    Vec3f ambient;   // 环境光反射系数
-    Vec3f diffuse;   // 漫反射系数
-    Vec3f specular;  // 镜面反射系数
+    float3 ambient;   // 环境光反射系数
+    float3 diffuse;   // 漫反射系数
+    float3 specular;  // 镜面反射系数
     float shininess; // 光泽度（用于镜面反射计算）
 
     Material() : ambient(0.1f, 0.1f, 0.1f), diffuse(0.7f, 0.7f, 0.7f),
                  specular(0.2f, 0.2f, 0.2f), shininess(32.0f) {}
-    Material(const Vec3f &amb, const Vec3f &diff, const Vec3f &spec, float shin)
+    Material(const float3 &amb, const float3 &diff, const float3 &spec, float shin)
         : ambient(amb), diffuse(diff), specular(spec), shininess(shin) {}
 };
 
 // 前向声明
 class Renderer;
+
+//Shader Common
+float smoothstep(float edge0, float edge1, float x);
 
 // 着色器输入/输出结构体
 struct ShaderUniforms
@@ -44,7 +47,7 @@ struct ShaderUniforms
     Matrix4x4f viewMatrix;  // 视图矩阵
     Matrix4x4f projMatrix;  // 投影矩阵
     Matrix4x4f mvpMatrix;   // 组合的MVP矩阵
-    Vec3f eyePosition;      // 相机位置（世界空间）
+    float3 eyePosition;      // 相机位置（世界空间）
     Light light;            // 光源信息
     Material material;      // 材质信息
 };
@@ -52,8 +55,8 @@ struct ShaderUniforms
 // 顶点着色器输入
 struct VertexAttributes
 {
-    Vec3f position; // 顶点位置（模型空间）
-    Vec3f normal;   // 顶点法线（模型空间）
+    float3 position; // 顶点位置（模型空间）
+    float3 normal;   // 顶点法线（模型空间）
     Vec2f texCoord; // 纹理坐标
     Color color;    // 顶点颜色
 };
@@ -61,8 +64,8 @@ struct VertexAttributes
 // 顶点着色器到片元着色器的传递变量
 struct Varyings
 {
-    Vec3f position; // 插值后的位置（世界空间）
-    Vec3f normal;   // 插值后的法线（世界空间）
+    float3 position; // 插值后的位置（世界空间）
+    float3 normal;   // 插值后的法线（世界空间）
     Vec2f texCoord; // 插值后的纹理坐标
     Color color;    // 插值后的颜色
     float depth;    // 深度值（用于深度测试）
@@ -86,7 +89,7 @@ public:
     // 顶点着色器
     // 输入：单个顶点属性
     // 输出：变换后的屏幕空间位置
-    virtual Vec3f vertexShader(const VertexAttributes &attributes, Varyings &output) = 0;
+    virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) = 0;
 
     // 片元着色器
     // 输入：插值后的Varyings
@@ -106,7 +109,7 @@ public:
         this->uniforms = uniforms;
     }
 
-    virtual Vec3f vertexShader(const VertexAttributes &attributes, Varyings &output) override
+    virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) override
     {
         // 将顶点变换到世界空间（用于片元着色器）
         output.position = transformNoDiv(uniforms.modelMatrix, attributes.position);
@@ -117,7 +120,7 @@ public:
         output.color = attributes.color;
 
         // 变换到裁剪空间，然后到NDC空间
-        Vec3f clipPos = transform(uniforms.mvpMatrix, attributes.position);
+        float3 clipPos = transform(uniforms.mvpMatrix, attributes.position);
 
         // 将z保存用于深度测试
         output.depth = clipPos.z;
@@ -145,7 +148,7 @@ public:
         this->uniforms = uniforms;
     }
 
-    virtual Vec3f vertexShader(const VertexAttributes &attributes, Varyings &output) override
+    virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) override
     {
         // 将顶点变换到世界空间（用于片元着色器）
         output.position = transformNoDiv(uniforms.modelMatrix, attributes.position);
@@ -156,7 +159,7 @@ public:
         output.color = attributes.color;
 
         // 变换到裁剪空间，然后到NDC空间
-        Vec3f clipPos = transform(uniforms.mvpMatrix, attributes.position);
+        float3 clipPos = transform(uniforms.mvpMatrix, attributes.position);
 
         // 将z保存用于深度测试
         output.depth = clipPos.z;
@@ -169,27 +172,31 @@ public:
         FragmentOutput output;
 
         // 确保法线是归一化的
-        Vec3f normal = normalize(input.normal);
+        float3 normal = normalize(input.normal);
 
         // 计算从顶点到光源的方向向量
-        Vec3f lightDir = normalize(uniforms.light.position - input.position);
+        float3 lightDir = normalize(uniforms.light.position - input.position);
 
         // 计算从顶点到观察者的方向向量
-        Vec3f viewDir = normalize(uniforms.eyePosition - input.position);
+        float3 viewDir = normalize(uniforms.eyePosition - input.position);
 
         // 计算半程向量（用于镜面反射）
-        Vec3f halfwayDir = normalize(lightDir + viewDir);
+        float3 halfwayDir = normalize(lightDir + viewDir);
+
+        float NoV = dot(normal, viewDir);
+        float NoL = dot(normal, lightDir);
+        float NoH = dot(normal, halfwayDir);
 
         // 计算环境光分量
-        Vec3f ambient = uniforms.material.ambient * uniforms.light.color * uniforms.light.ambientIntensity;
+        float3 ambient = uniforms.material.ambient * uniforms.light.color * uniforms.light.ambientIntensity;
 
         // 计算漫反射分量
-        float diff = std::max(dot(normal, lightDir), 0.0f);
-        Vec3f diffuse = uniforms.material.diffuse * uniforms.light.color * (diff * uniforms.light.intensity);
+        float diff = std::max(NoL, 0.0f);
+        float3 diffuse = uniforms.material.diffuse * uniforms.light.color * (diff * uniforms.light.intensity);
 
         // 计算镜面反射分量
-        float spec = std::pow(std::max(dot(normal, halfwayDir), 0.0f), uniforms.material.shininess);
-        Vec3f specular = uniforms.material.specular * uniforms.light.color * spec * uniforms.light.intensity;
+        float spec = std::pow(std::max(NoH, 0.0f), uniforms.material.shininess);
+        float3 specular = uniforms.material.specular * uniforms.light.color * spec * uniforms.light.intensity;
 
         // 合并所有光照分量
         float resultR = ambient.x + diffuse.x + specular.x;
@@ -208,16 +215,16 @@ public:
         float b = resultB * (input.color.b / 255.0f) * vertexColorFactor + resultB * (1.0f - vertexColorFactor);
 
         // 转换为颜色输出
-        output.color = Color(
-            static_cast<uint8_t>(r * 255.0f),
-            static_cast<uint8_t>(g * 255.0f),
-            static_cast<uint8_t>(b * 255.0f),
-            input.color.a);
-
+            output.color = Color(
+                static_cast<uint8_t>(r * 255.0f),
+                static_cast<uint8_t>(g * 255.0f),
+                static_cast<uint8_t>(b * 255.0f),
+                input.color.a);
         return output;
     }
 };
 
+//ToonShader 存在边缘线计算错误
 // 自定义着色器示例：卡通渲染着色器
 class ToonShader : public IShader
 {
@@ -231,7 +238,7 @@ public:
         this->uniforms = uniforms;
     }
 
-    virtual Vec3f vertexShader(const VertexAttributes &attributes, Varyings &output) override
+    virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) override
     {
         // 将顶点变换到世界空间（用于片元着色器）
         output.position = transformNoDiv(uniforms.modelMatrix, attributes.position);
@@ -242,7 +249,7 @@ public:
         output.color = attributes.color;
 
         // 变换到裁剪空间，然后到NDC空间
-        Vec3f clipPos = transform(uniforms.mvpMatrix, attributes.position);
+        float3 clipPos = transform(uniforms.mvpMatrix, attributes.position);
 
         // 将z保存用于深度测试
         output.depth = clipPos.z;
@@ -255,10 +262,13 @@ public:
         FragmentOutput output;
 
         // 确保法线是归一化的
-        Vec3f normal = normalize(input.normal);
+        float3 normal = normalize(input.normal);
 
         // 计算从顶点到光源的方向向量
-        Vec3f lightDir = normalize(uniforms.light.position - input.position);
+        float3 lightDir = normalize(uniforms.light.position - input.position);
+
+        // 计算从顶点到观察者的方向向量
+        float3 viewDir = normalize(uniforms.eyePosition - input.position);
 
         // 计算漫反射强度
         float diffuse = std::max(dot(normal, lightDir), 0.0f);
@@ -266,18 +276,28 @@ public:
         // 将漫反射强度量化为几个离散级别（卡通效果）
         diffuse = std::floor(diffuse * levels) / levels;
 
-        // 边缘检测（轮廓线效果）
-        Vec3f viewDir = normalize(uniforms.eyePosition - input.position);
+        // 边缘检测（轮廓线效果）- 使用法线与视线方向的点积
         float edge = 1.0f;
-        if (dot(normal, viewDir) < 0.2f)
+        float edgeFactor = dot(normal, viewDir);
+
+        float  edgeThreshold=0.02f;
+        // 如果法线与视线方向几乎垂直，则是边缘
+        if (edgeFactor < edgeThreshold)
         {
-            edge = 0.0f; // 轮廓线为黑色
+            // 平滑过渡
+            float edgeIntensity = smoothstep(0.0f, edgeThreshold, edgeFactor);
+            edge = edgeIntensity;
         }
 
-        // 计算最终颜色
-        float r = diffuse * (input.color.r / 255.0f) * edge;
-        float g = diffuse * (input.color.g / 255.0f) * edge;
-        float b = diffuse * (input.color.b / 255.0f) * edge;
+        // 计算基础颜色（不包括边缘）
+        float baseR = diffuse * (input.color.r / 255.0f);
+        float baseG = diffuse * (input.color.g / 255.0f);
+        float baseB = diffuse * (input.color.b / 255.0f);
+
+        // 应用边缘因子
+        float r = baseR * edge;
+        float g = baseG * edge;
+        float b = baseB * edge;
 
         // 转换为颜色输出
         output.color = Color(
@@ -285,7 +305,6 @@ public:
             static_cast<uint8_t>(g * 255.0f),
             static_cast<uint8_t>(b * 255.0f),
             input.color.a);
-
         return output;
     }
 };

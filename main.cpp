@@ -9,40 +9,6 @@
 #include "test.h"
 #include "shader.h"
 
-
-// 创建一个简单的三角形网格
-std::shared_ptr<Mesh> createTriangleMesh(const Color &color)
-{
-    auto mesh = std::make_shared<Mesh>();
-
-    // 添加顶点
-    mesh->addVertex(Vec3f(-0.5f, -0.5f, 0.0f));
-    mesh->addVertex(Vec3f(0.5f, -0.5f, 0.0f));
-    mesh->addVertex(Vec3f(0.0f, 0.5f, 0.0f));
-
-    // 添加法线
-    mesh->addNormal(Vec3f(0.0f, 0.0f, 1.0f));
-    mesh->addNormal(Vec3f(0.0f, 0.0f, 1.0f));
-    mesh->addNormal(Vec3f(0.0f, 0.0f, 1.0f));
-
-    // 添加纹理坐标
-    mesh->addTexCoord(Vec2f(0.0f, 0.0f));
-    mesh->addTexCoord(Vec2f(1.0f, 0.0f));
-    mesh->addTexCoord(Vec2f(0.5f, 1.0f));
-
-    // 添加面
-    Face face;
-    face.vertexIndices = {0, 1, 2};
-    face.normalIndices = {0, 1, 2};
-    face.texCoordIndices = {0, 1, 2};
-    mesh->addFace(face);
-
-    // 设置颜色
-    mesh->setColor(color);
-
-    return mesh;
-}
-
 int main()
 {
     const int WIDTH = 800;
@@ -51,10 +17,14 @@ int main()
     // 创建渲染器
     Renderer renderer(WIDTH, HEIGHT);
 
+    // 创建不同的场景对象，使用不同的着色器
+    std::vector<SceneObject> scene;
+
     // 设置相机与投影
     Vec3f eye(0.0f, 0.0f, 5.0f);
     Vec3f target(0.0f, 0.0f, 0.0f);
     Vec3f up(0.0f, 1.0f, 0.0f);
+    renderer.setEye(eye);
     renderer.setViewMatrix(Matrix4x4f::lookAt(eye, target, up));
 
     float aspect = static_cast<float>(WIDTH) / static_cast<float>(HEIGHT);
@@ -64,11 +34,6 @@ int main()
     // 设置光源
     Light light(Vec3f(2.0f, 2.0f, 5.0f), Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.2f);
     renderer.setLight(light);
-
-    // 创建不同的场景对象，使用不同的着色器
-    std::vector<SceneObject> scene;
-
-    //     scene.push_back(SceneObject(mesh, modelMatrix));
 
     // 渲染场景
     // 创建一个简单的OBJ文件用于测试

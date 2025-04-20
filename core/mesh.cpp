@@ -266,16 +266,17 @@ void Mesh::draw(Renderer& renderer) const {
     }
     
     // 获取相机在世界空间中的位置（用于光照计算）
-    Vec3f eyePos = Vec3f(0, 0, 0); // 在观察空间中，相机位于原点
-    Vec3f worldEyePos = transformNoDiv(renderer.getViewMatrix(), eyePos, 0.0f);
-    
+    // Vec3f eyePos = Vec3f(0, 0, 0); // 在观察空间中，相机位于原点
+    // Vec3f worldEyePos = transformNoDiv(renderer.getViewMatrix(), eyePos, 0.0f);
+    // std::cout << "worldEyePos: " << worldEyePos.x << worldEyePos.y<<worldEyePos.z <<std::endl;  // 默认格式
+
     // 设置着色器的统一变量
     ShaderUniforms uniforms;
     uniforms.modelMatrix = renderer.getModelMatrix();
     uniforms.viewMatrix = renderer.getViewMatrix();
     uniforms.projMatrix = renderer.getProjMatrix();
     uniforms.mvpMatrix = renderer.getMVPMatrix();
-    uniforms.eyePosition = worldEyePos;
+    uniforms.eyePosition = renderer.getEye();
     uniforms.light = renderer.getLight();
     uniforms.material = material;
     
