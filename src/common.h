@@ -36,17 +36,17 @@ struct Light
         : position(pos), color(col), intensity(intens), ambientIntensity(ambIntens) {}
 };
 
-// 材质结构体
-struct Material
+// 表面材质属性结构体
+struct Surface
 {
     float3 ambient;  // 环境光反射系数
     float3 diffuse;  // 漫反射系数
     float3 specular; // 镜面反射系数
     float shininess; // 光泽度（用于镜面反射计算）
 
-    Material() : ambient(0.1f, 0.1f, 0.1f), diffuse(0.7f, 0.7f, 0.7f),
+    Surface() : ambient(0.1f, 0.1f, 0.1f), diffuse(0.7f, 0.7f, 0.7f),
                  specular(0.2f, 0.2f, 0.2f), shininess(32.0f) {}
-    Material(const float3 &amb, const float3 &diff, const float3 &spec, float shin)
+    Surface(const float3 &amb, const float3 &diff, const float3 &spec, float shin)
         : ambient(amb), diffuse(diff), specular(spec), shininess(shin) {}
 };
 
@@ -85,3 +85,4 @@ struct Face {
     
     Face() = default;
 };
+

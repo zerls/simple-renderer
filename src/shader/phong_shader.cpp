@@ -47,15 +47,15 @@ FragmentOutput PhongShader::fragmentShader(const Varyings &input)
     float NoH = dot(normal, halfwayDir);
 
     // 计算环境光分量
-    float3 ambient = uniforms.material.ambient * uniforms.light.color * uniforms.light.ambientIntensity;
+    float3 ambient = uniforms.surface.ambient * uniforms.light.color * uniforms.light.ambientIntensity;
 
     // 计算漫反射分量
     float diff = std::max(NoL, 0.0f);
-    float3 diffuse = uniforms.material.diffuse * uniforms.light.color * (diff * uniforms.light.intensity);
+    float3 diffuse = uniforms.surface.diffuse * uniforms.light.color * (diff * uniforms.light.intensity);
 
     // 计算镜面反射分量
-    float spec = std::pow(std::max(NoH, 0.0f), uniforms.material.shininess);
-    float3 specular = uniforms.material.specular * uniforms.light.color * spec * uniforms.light.intensity;
+    float spec = std::pow(std::max(NoH, 0.0f), uniforms.surface.shininess);
+    float3 specular = uniforms.surface.specular * uniforms.light.color * spec * uniforms.light.intensity;
 
     // 合并所有光照分量
     float resultR = ambient.x + diffuse.x + specular.x;

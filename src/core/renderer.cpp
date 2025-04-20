@@ -140,6 +140,21 @@ Vec3f Renderer::screenMapping(const Vec3f& clipPos) {
     return Vec3f(screenX, screenY, clipPos.z);
 }
 
+// 透视校正插值函数
+Vec3f interpolatePerspectiveCorrect(
+    const Vec3f &attr0, const Vec3f &attr1, const Vec3f &attr2, // 三个顶点的属性值
+    const Vec3f &lambda,                                        // 重心坐标系数
+    const Vec3f &w,                                             // 顶点的 1/w 值（透视除法前的倒数）
+    float w_correct                                             // 插值后的 1/w 用于校正
+)
+{
+    Vec3f result;
+    result.x = (lambda.x * attr0.x * w.x + lambda.y * attr1.x * w.y + lambda.z * attr2.x * w.z) * w_correct;
+    result.y = (lambda.x * attr0.y * w.x + lambda.y * attr1.y * w.y + lambda.z * attr2.y * w.z) * w_correct;
+    result.z = (lambda.x * attr0.z * w.x + lambda.y * attr1.z * w.y + lambda.z * attr2.z * w.z) * w_correct;
+    return result;
+}
+
 // 更新的三角形栅格化函数（使用外部提供的着色器）
 void Renderer::rasterizeTriangle(const Triangle& triangle, std::shared_ptr<IShader> shader) {
     // 如果没有有效的着色器，则直接返回
@@ -161,7 +176,7 @@ void Renderer::rasterizeTriangle(const Triangle& triangle, std::shared_ptr<IShad
         attributes.texCoord = triangle.vertices[i].texCoord;
         attributes.color = triangle.vertices[i].color;
         
-        // 运行顶点着色器
+        //=================== 运行顶点着色器==================
         clipPositions[i] = shader->vertexShader(attributes, varyings[i]);
         
         // 屏幕映射
@@ -200,6 +215,7 @@ void Renderer::rasterizeTriangle(const Triangle& triangle, std::shared_ptr<IShad
     float w0 = 1.0f / varyings[0].depth;
     float w1 = 1.0f / varyings[1].depth;
     float w2 = 1.0f / varyings[2].depth;
+    float3 w =float3(w0,w1,w2);
     
     // 遍历包围盒中的每个像素
     for (int y = minY; y <= maxY; ++y) {
@@ -208,6 +224,7 @@ void Renderer::rasterizeTriangle(const Triangle& triangle, std::shared_ptr<IShad
             float lambda0 = ((x1 - x) * (y2 - y) - (y1 - y) * (x2 - x)) / area;
             float lambda1 = ((x2 - x) * (y0 - y) - (y2 - y) * (x0 - x)) / area;
             float lambda2 = 1.0f - lambda0 - lambda1;
+            float3 lambda =float3(lambda0,lambda1,lambda2);
             
             // 检查点是否在三角形内
             if (lambda0 >= 0 && lambda1 >= 0 && lambda2 >= 0) {
@@ -219,26 +236,14 @@ void Renderer::rasterizeTriangle(const Triangle& triangle, std::shared_ptr<IShad
                 Varyings interpolatedVaryings;
                 
                 // 透视校正插值位置
-                interpolatedVaryings.position.x = (lambda0 * varyings[0].position.x * w0 + 
-                                                lambda1 * varyings[1].position.x * w1 + 
-                                                lambda2 * varyings[2].position.x * w2) * w_correct;
-                interpolatedVaryings.position.y = (lambda0 * varyings[0].position.y * w0 + 
-                                                lambda1 * varyings[1].position.y * w1 + 
-                                                lambda2 * varyings[2].position.y * w2) * w_correct;
-                interpolatedVaryings.position.z = (lambda0 * varyings[0].position.z * w0 + 
-                                                lambda1 * varyings[1].position.z * w1 + 
-                                                lambda2 * varyings[2].position.z * w2) * w_correct;
+                interpolatedVaryings.position = interpolatePerspectiveCorrect(
+                    varyings[0].position, varyings[1].position, varyings[2].position,
+                    lambda, w, w_correct);
                 
                 // 透视校正插值法线
-                interpolatedVaryings.normal.x = (lambda0 * varyings[0].normal.x * w0 + 
-                                              lambda1 * varyings[1].normal.x * w1 + 
-                                              lambda2 * varyings[2].normal.x * w2) * w_correct;
-                interpolatedVaryings.normal.y = (lambda0 * varyings[0].normal.y * w0 + 
-                                              lambda1 * varyings[1].normal.y * w1 + 
-                                              lambda2 * varyings[2].normal.y * w2) * w_correct;
-                interpolatedVaryings.normal.z = (lambda0 * varyings[0].normal.z * w0 + 
-                                              lambda1 * varyings[1].normal.z * w1 + 
-                                              lambda2 * varyings[2].normal.z * w2) * w_correct;
+                interpolatedVaryings.normal = interpolatePerspectiveCorrect(
+                    varyings[0].normal, varyings[1].normal, varyings[2].normal,
+                    lambda, w, w_correct);
                 
                 // 归一化插值后的法线
                 interpolatedVaryings.normal = normalize(interpolatedVaryings.normal);
@@ -270,7 +275,7 @@ void Renderer::rasterizeTriangle(const Triangle& triangle, std::shared_ptr<IShad
                                             lambda1 * varyings[1].depth * w1 + 
                                             lambda2 * varyings[2].depth * w2) * w_correct;
                 
-                // 运行片段着色器
+                //================================运行片段着色器==============================
                 FragmentOutput fragmentOutput = shader->fragmentShader(interpolatedVaryings);
                 
                 // 设置像素颜色（包含深度测试）
@@ -283,17 +288,18 @@ void Renderer::rasterizeTriangle(const Triangle& triangle, std::shared_ptr<IShad
 // 绘制网格 - 更新版本（使用着色器）
 // 绘制网格 - 完全重写版本（使用Mesh自身的着色器）
 // 重新实现的 drawMesh 方法，不再依赖 Mesh::draw
-void Renderer::drawMesh(const std::shared_ptr<Mesh> &mesh)
+// 在 renderer.cpp 中实现
+void Renderer::drawMesh(const std::shared_ptr<Mesh> &mesh, std::shared_ptr<Material> material)
 {
     if (!mesh) {
         return;
     }
 
-    // 检查是否有着色器设置
-    std::shared_ptr<IShader> activeShader = mesh->getShader() ? mesh->getShader() : shader;
+    // 使用提供的材质和着色器
+    std::shared_ptr<IShader> activeShader = material->getShader();
     
     if (!activeShader) {
-        std::cerr << "错误：没有设置着色器，无法渲染网格。" << std::endl;
+        std::cerr << "错误：材质没有设置着色器，无法渲染网格。" << std::endl;
         return;
     }
     
@@ -305,7 +311,7 @@ void Renderer::drawMesh(const std::shared_ptr<Mesh> &mesh)
     uniforms.mvpMatrix = getMVPMatrix();
     uniforms.eyePosition = eyePosWS;
     uniforms.light = light;
-    uniforms.material = mesh->getMaterial();
+    uniforms.surface = material->getSurface();
     
     activeShader->setUniforms(uniforms);
     
@@ -319,23 +325,5 @@ void Renderer::drawMesh(const std::shared_ptr<Mesh> &mesh)
             // 直接使用栅格化函数渲染三角形
             rasterizeTriangle(tri, activeShader);
         }
-    }
-}
-
-
-// 渲染一个场景，包含多个对象
-void renderScene(Renderer &renderer, const std::vector<SceneObject> &objects)
-{
-    // 清除屏幕
-    renderer.clear(Color(40, 40, 60)); // 深蓝灰色背景
-
-    // 绘制每个对象
-    for (const auto &object : objects)
-    {
-        // 设置模型矩阵
-        renderer.setModelMatrix(object.modelMatrix);
-
-        // 绘制网格
-        renderer.drawMesh(object.mesh);
     }
 }

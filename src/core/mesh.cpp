@@ -1,5 +1,5 @@
 // mesh.cpp
-// Mesh类和OBJ文件加载的实现 (修复后)
+// Mesh类和OBJ文件加载的实现 (更新版)
 
 #include "mesh.h"
 #include <fstream>
@@ -11,8 +11,7 @@
 
 // Mesh构造函数
 Mesh::Mesh() {
-    // 设置默认材质
-    material = Material();
+    // 不再包含材质和着色器的初始化
 }
 
 // 添加顶点
@@ -35,11 +34,6 @@ void Mesh::addNormal(const Vec3f& n) {
 // 添加面
 void Mesh::addFace(const Face& f) {
     faces.push_back(f);
-}
-
-// 设置材质
-void Mesh::setMaterial(const Material& mat) {
-    material = mat;
 }
 
 // 计算面法线
@@ -217,13 +211,6 @@ std::vector<Triangle> Mesh::triangulate(const Face& face) const {
     return triangles;
 }
 
-
-
-// 设置Mesh的着色器
-void Mesh::setShader(std::shared_ptr<IShader> shader) {
-    this->shader = shader;
-}
-
 // 加载OBJ文件
 std::shared_ptr<Mesh> loadOBJ(const std::string& filename) {
     std::ifstream file(filename);
@@ -298,9 +285,8 @@ std::shared_ptr<Mesh> loadOBJ(const std::string& filename) {
         mesh->calculateVertexNormals();
     }
     
-    // 中心化和标准化网格
+    // 中心化网格
     mesh->centerize();
-    // mesh->normaliz()e();
     
     std::cout << "已加载 " << filename << "：" << mesh->getVertexCount() << " 个顶点，" 
               << mesh->getFaceCount() << " 个面。" << std::endl;

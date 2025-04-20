@@ -1,4 +1,6 @@
 .DS_Store
-/bulid
+build
 .vscode
+output
+assets
 Old

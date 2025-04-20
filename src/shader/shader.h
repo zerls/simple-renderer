@@ -5,6 +5,7 @@
 
 #include "maths.h"
 #include "common.h"
+#include "texture.h"
 #include <memory>
 
 // 着色器输入/输出结构体
@@ -16,7 +17,7 @@ struct ShaderUniforms
     Matrix4x4f mvpMatrix;   // 组合的MVP矩阵
     float3 eyePosition;     // 相机位置（世界空间）
     Light light;            // 光源信息
-    Material material;      // 材质信息
+    Surface surface;      // 材质信息
 };
 
 // 顶点着色器输入
@@ -104,5 +105,23 @@ public:
 std::shared_ptr<IShader> createBasicShader();
 std::shared_ptr<IShader> createPhongShader();
 std::shared_ptr<IShader> createToonShader();
+
+class TexturedPhongShader : public PhongShader {
+    private:
+        std::shared_ptr<Texture> diffuseMap = nullptr;
+        std::shared_ptr<Texture> normalMap = nullptr;
+        
+    public:
+        void setDiffuseMap(std::shared_ptr<Texture> texture) { diffuseMap = texture; }
+        void setNormalMap(std::shared_ptr<Texture> texture) { normalMap = texture; }
+        
+        virtual FragmentOutput fragmentShader(const Varyings &input) override;
+    };
+    
+    // 工厂函数
+    std::shared_ptr<IShader> createTexturedPhongShader(
+        std::shared_ptr<Texture> diffuseMap = nullptr,
+        std::shared_ptr<Texture> normalMap = nullptr);
+
 
 #endif

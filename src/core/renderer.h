@@ -9,6 +9,7 @@
 
 #include "maths.h"
 #include "shader.h"
+#include "material.h"
 
 // 前向声明
 class Mesh;
@@ -95,7 +96,7 @@ public:
     const FrameBuffer &getFrameBuffer() const { return *frameBuffer; }
 
     // 绘制网格
-    void drawMesh(const std::shared_ptr<Mesh> &mesh);
+    void drawMesh(const std::shared_ptr<Mesh> &mesh, std::shared_ptr<Material> material);
 
     // 光照相关方法
     void setLight(const Light &light) { this->light = light; }
@@ -115,14 +116,3 @@ private:
     Vec3f eyePosWS;
 };
 
-// 封装场景对象
-struct SceneObject
-{
-    std::shared_ptr<Mesh> mesh;
-    Matrix4x4f modelMatrix;
-
-    SceneObject(std::shared_ptr<Mesh> mesh, const Matrix4x4f &matrix)
-        : mesh(mesh), modelMatrix(matrix) {}
-};
-
-void renderScene(Renderer &renderer, const std::vector<SceneObject> &objects);

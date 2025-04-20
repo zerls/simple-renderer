@@ -9,13 +9,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(SRC_LIST 
     main.cpp
     test.cpp
-    lib/maths.cpp
-    core/renderer.cpp
-    core/mesh.cpp
+    src/lib/maths.cpp
+    src/core/renderer.cpp
+    src/core/mesh.cpp
+    src/core/texture.cpp
+    src/core/scene.cpp
+    src/core/material.cpp
     # shader/shader.cpp  
-    shader/basic_shader.cpp  # ← 手动指定子目录文件
-    shader/phong_shader.cpp  
-    shader/toon_shader.cpp  
+    src/shader/basic_shader.cpp  # ← 手动指定子目录文件
+    src/shader/phong_shader.cpp  
+    src/shader/toon_shader.cpp
+    src/shader/textured_phong_shader.cpp  
 )
 
 add_executable(SimpleRenderer ${SRC_LIST})
@@ -23,7 +27,33 @@ add_executable(SimpleRenderer ${SRC_LIST})
 # 添加头文件目录
 target_include_directories(SimpleRenderer PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib
-    ${CMAKE_CURRENT_SOURCE_DIR}/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/shader
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/shader
 )
+
+# 设置资源目录
+set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../assets")
+set(OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../output")
+
+# # 创建输出目录
+# file(MAKE_DIRECTORY ${OUTPUT_DIR})
+
+# # 复制资源文件到构建目录以便于运行时访问
+# file(GLOB OBJ_FILES "${ASSETS_DIR}/*.obj")
+# file(GLOB TGA_FILES "${ASSETS_DIR}/*.tga")
+
+# foreach(OBJ_FILE ${OBJ_FILES})
+#     file(COPY ${OBJ_FILE} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+# endforeach()
+
+# foreach(TGA_FILE ${TGA_FILES})
+#     file(COPY ${TGA_FILE} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+# endforeach()
+
+# # 修改输出路径
+# set_target_properties(SimpleRenderer
+#     PROPERTIES
+#     RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_DIR}
+# )

@@ -7,8 +7,7 @@
 #include <string>
 #include <memory>
 #include "maths.h"
-#include "renderer.h"
-#include "shader.h"
+#include "common.h"
 
 // 定义Mesh类
 class Mesh {
@@ -22,15 +21,6 @@ public:
     void addNormal(const Vec3f& n);
     void addFace(const Face& f);
     
-    // 设置网格材质
-    void setMaterial(const Material& mat);
-    
-    // 设置网格着色器
-    void setShader(std::shared_ptr<IShader> shader);
-    
-    // 获取网格着色器
-    std::shared_ptr<IShader> getShader() const { return shader; }
-    
     // 计算面法线（如果OBJ文件没有提供法线）
     void calculateFaceNormals();
     
@@ -39,9 +29,6 @@ public:
     
     // 计算边界框
     void calculateBoundingBox(Vec3f& min, Vec3f& max) const;
-    
-    // 获取材质
-    const Material& getMaterial() const { return material; }
     
     // 获取顶点数量
     size_t getVertexCount() const { return vertices.size(); }
@@ -58,17 +45,17 @@ public:
     // 将面转换为三角形（如果面有多于3个顶点）
     std::vector<Triangle> triangulate(const Face& face) const;
     
-    // 将这些数据成员修改为public，以便在Renderer中访问
+    // 获取顶点颜色
+    const std::vector<Color>& getVertexColors() const { return vertexColors; }
+    
+    // 数据成员
     std::vector<Vec3f> vertices;         // 顶点
     std::vector<Vec2f> texCoords;        // 纹理坐标
     std::vector<Vec3f> normals;          // 法线
-    std::vector<Face> faces;            // 面
-    std::vector<Color> vertexColors;    // 顶点颜色
-    Material material;                  // 材质
+    std::vector<Face> faces;             // 面
+    std::vector<Color> vertexColors;     // 顶点颜色
+
     
-private:
-    // 添加着色器成员
-    std::shared_ptr<IShader> shader;    // 网格专用着色器
 };
 
 // OBJ文件加载函数
