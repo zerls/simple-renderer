@@ -75,7 +75,8 @@ bool Texture::loadFromTGA(const std::string& filename) {
     }
     
     // 根据imageDescriptor检查是否需要垂直翻转
-    bool flipVertically = !(imageDescriptor & 0x20);
+    //TODO 也可能是 Renderer 的坐标问题导致图像垂直翻转了，之后需要检查，这里简单的将 !(imageDescriptor & 0x20) 修改为(imageDescriptor & 0x20)
+    bool flipVertically = (imageDescriptor & 0x20);
     if (flipVertically) {
         // 垂直翻转图像
         std::vector<uint8_t> flippedData(dataSize);

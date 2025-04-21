@@ -1,191 +1,4 @@
 #include "maths.h"
-#include <algorithm> // 为 std::clamp 添加头文件
-
-
-// Vec2 实现
-template<typename T>
-Vec2<T> Vec2<T>::normalize() const {
-    T len = length();
-    if (len < static_cast<T>(1e-6))
-        return Vec2<T>();
-    T invLen = static_cast<T>(1) / len;
-    return Vec2<T>(x * invLen, y * invLen);
-}
-
-// 显式实例化常用类型
-template Vec2<float> Vec2<float>::normalize() const;
-
-// Vec3 实现
-template<typename T>
-Vec3<T> Vec3<T>::cross(const Vec3<T>& other) const {
-    return Vec3<T>(
-        y * other.z - z * other.y,
-        z * other.x - x * other.z,
-        x * other.y - y * other.x
-    );
-}
-
-template<typename T>
-Vec3<T> Vec3<T>::normalize() const {
-    T len = length();
-    if (len < static_cast<T>(1e-6))
-        return Vec3<T>();
-    T invLen = static_cast<T>(1) / len;
-    return Vec3<T>(x * invLen, y * invLen, z * invLen);
-}
-
-// 显式实例化常用类型
-template Vec3<float> Vec3<float>::cross(const Vec3<float>& other) const;
-template Vec3<float> Vec3<float>::normalize() const;
-
-// Vec4 实现
-template<typename T>
-Vec4<T> Vec4<T>::normalize() const {
-    T len = length();
-    if (len < static_cast<T>(1e-6))
-        return Vec4<T>();
-    T invLen = static_cast<T>(1) / len;
-    return Vec4<T>(x * invLen, y * invLen, z * invLen, w * invLen);
-}
-
-// 显式实例化常用类型
-template Vec4<float> Vec4<float>::normalize() const;
-
-// 全局向量操作函数实现
-template<typename T>
-Vec2<T> normalize(const Vec2<T>& v) {
-    return v.normalize();
-}
-
-template<typename T>
-Vec3<T> normalize(const Vec3<T>& v) {
-    return v.normalize();
-}
-
-template<typename T>
-Vec4<T> normalize(const Vec4<T>& v) {
-    return v.normalize();
-}
-
-template<typename T>
-T dot(const Vec2<T>& a, const Vec2<T>& b) {
-    return a.dot(b);
-}
-
-template<typename T>
-T dot(const Vec3<T>& a, const Vec3<T>& b) {
-    return a.dot(b);
-}
-
-template<typename T>
-T dot(const Vec4<T>& a, const Vec4<T>& b) {
-    return a.dot(b);
-}
-
-template<typename T>
-Vec3<T> cross(const Vec3<T>& a, const Vec3<T>& b) {
-    return a.cross(b);
-}
-
-// 显式实例化常用类型
-template Vec2<float> normalize(const Vec2<float>& v);
-template Vec3<float> normalize(const Vec3<float>& v);
-template Vec4<float> normalize(const Vec4<float>& v);
-template float dot(const Vec2<float>& a, const Vec2<float>& b);
-template float dot(const Vec3<float>& a, const Vec3<float>& b);
-template float dot(const Vec4<float>& a, const Vec4<float>& b);
-template Vec3<float> cross(const Vec3<float>& a, const Vec3<float>& b);
-
-// Matrix3x3 实现
-template<typename T>
-Matrix3x3<T> Matrix3x3<T>::operator*(const Matrix3x3<T>& other) const {
-    return Matrix3x3<T>(
-        m00 * other.m00 + m01 * other.m10 + m02 * other.m20,
-        m00 * other.m01 + m01 * other.m11 + m02 * other.m21,
-        m00 * other.m02 + m01 * other.m12 + m02 * other.m22,
-        
-        m10 * other.m00 + m11 * other.m10 + m12 * other.m20,
-        m10 * other.m01 + m11 * other.m11 + m12 * other.m21,
-        m10 * other.m02 + m11 * other.m12 + m12 * other.m22,
-        
-        m20 * other.m00 + m21 * other.m10 + m22 * other.m20,
-        m20 * other.m01 + m21 * other.m11 + m22 * other.m21,
-        m20 * other.m02 + m21 * other.m12 + m22 * other.m22
-    );
-}
-
-template<typename T>
-Matrix3x3<T> Matrix3x3<T>::identity() {
-    return Matrix3x3<T>();
-}
-
-template<typename T>
-Matrix3x3<T> Matrix3x3<T>::translation(T x, T y) {
-    Matrix3x3<T> result;
-    result.m02 = x;
-    result.m12 = y;
-    return result;
-}
-
-template<typename T>
-Matrix3x3<T> Matrix3x3<T>::scaling(T x, T y) {
-    Matrix3x3<T> result;
-    result.m00 = x;
-    result.m11 = y;
-    return result;
-}
-
-template<typename T>
-Matrix3x3<T> Matrix3x3<T>::rotation(T angle) {
-    T c = std::cos(angle);
-    T s = std::sin(angle);
-
-    Matrix3x3<T> result;
-    result.m00 = c;
-    result.m01 = -s;
-    result.m10 = s;
-    result.m11 = c;
-    return result;
-}
-
-template<typename T>
-T Matrix3x3<T>::determinant() const {
-    return m00 * (m11 * m22 - m12 * m21) -
-           m01 * (m10 * m22 - m12 * m20) +
-           m02 * (m10 * m21 - m11 * m20);
-}
-
-template<typename T>
-Matrix3x3<T> Matrix3x3<T>::inverse() const {
-    T det = determinant();
-    if (std::abs(det) < static_cast<T>(1e-6))
-        return Matrix3x3<T>::identity(); // 返回单位矩阵，表示无法求逆
-        
-    T invDet = static_cast<T>(1) / det;
-    
-    return Matrix3x3<T>(
-        (m11 * m22 - m12 * m21) * invDet,
-        (m02 * m21 - m01 * m22) * invDet,
-        (m01 * m12 - m02 * m11) * invDet,
-        
-        (m12 * m20 - m10 * m22) * invDet,
-        (m00 * m22 - m02 * m20) * invDet,
-        (m02 * m10 - m00 * m12) * invDet,
-        
-        (m10 * m21 - m11 * m20) * invDet,
-        (m01 * m20 - m00 * m21) * invDet,
-        (m00 * m11 - m01 * m10) * invDet
-    );
-}
-
-// 显式实例化常用类型
-template Matrix3x3<float> Matrix3x3<float>::operator*(const Matrix3x3<float>& other) const;
-template Matrix3x3<float> Matrix3x3<float>::identity();
-template Matrix3x3<float> Matrix3x3<float>::translation(float x, float y);
-template Matrix3x3<float> Matrix3x3<float>::scaling(float x, float y);
-template Matrix3x3<float> Matrix3x3<float>::rotation(float angle);
-template float Matrix3x3<float>::determinant() const;
-template Matrix3x3<float> Matrix3x3<float>::inverse() const;
 
 // Matrix4x4 实现
 template<typename T>
@@ -204,10 +17,29 @@ Matrix4x4<T> Matrix4x4<T>::operator*(const Matrix4x4<T>& other) const {
     
     return result;
 }
-
 template<typename T>
-Matrix4x4<T> Matrix4x4<T>::identity() {
-    return Matrix4x4<T>();
+Matrix4x4<T>  Matrix4x4<T>::transposed() const
+{
+    Matrix4x4 result;
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            result.m[i * 4 + j] = m[j * 4 + i];
+        }
+    }
+    return result;
+}
+
+// 变换向量
+template<typename T>
+Vec4<T> Matrix4x4<T>::transform(const Vec4<T> &v) const
+{
+    return Vec4<T>(
+        m00 * v.x + m01 * v.y + m02 * v.z + m03 * v.w,
+        m10 * v.x + m11 * v.y + m12 * v.z + m13 * v.w,
+        m20 * v.x + m21 * v.y + m22 * v.z + m23 * v.w,
+        m30 * v.x + m31 * v.y + m32 * v.z + m33 * v.w);
 }
 
 template<typename T>
@@ -321,26 +153,6 @@ template Matrix4x4<float> Matrix4x4<float>::rotationZ(float angle);
 template Matrix4x4<float> Matrix4x4<float>::perspective(float fovY, float aspect, float zNear, float zFar);
 template Matrix4x4<float> Matrix4x4<float>::lookAt(const Vec3<float>& eye, const Vec3<float>& target, const Vec3<float>& up);
 
-// 通用矩阵模板实现
-template<typename T, size_t ROWS, size_t COLS>
-template<size_t OTHER_COLS>
-Matrix<T, ROWS, OTHER_COLS> Matrix<T, ROWS, COLS>::operator*(const Matrix<T, COLS, OTHER_COLS>& other) const {
-    Matrix<T, ROWS, OTHER_COLS> result;
-    for (size_t row = 0; row < ROWS; ++row) {
-        for (size_t col = 0; col < OTHER_COLS; ++col) {
-            result(row, col) = static_cast<T>(0);
-            for (size_t k = 0; k < COLS; ++k) {
-                result(row, col) += (*this)(row, k) * other(k, col);
-            }
-        }
-    }
-    return result;
-}
-
-template<typename T, size_t ROWS, size_t COLS>
-Matrix<T, ROWS, COLS> Matrix<T, ROWS, COLS>::identity() {
-    return Matrix<T, ROWS, COLS>();
-}
 
 // 矩阵-向量变换函数
 Vec3f transform(const Matrix4x4f& matrix, const Vec3f& vector, float w) {
@@ -358,6 +170,7 @@ Vec3f transform(const Matrix4x4f& matrix, const Vec3f& vector, float w) {
     return Vec3f(x, y, z);
 }
 
+
 Vec3f transformNoDiv(const Matrix4x4f& matrix, const Vec3f& vector, float w) {
     float x = vector.x * matrix.m00 + vector.y * matrix.m01 + vector.z * matrix.m02 + w * matrix.m03;
     float y = vector.x * matrix.m10 + vector.y * matrix.m11 + vector.z * matrix.m12 + w * matrix.m13;
@@ -365,15 +178,62 @@ Vec3f transformNoDiv(const Matrix4x4f& matrix, const Vec3f& vector, float w) {
     
     return Vec3f(x, y, z);
 }
-
+Vec3f transformDir(const Matrix4x4f& mat, const Vec3f& dir) {
+    return Vec3f(
+        mat.m00 * dir.x + mat.m01 * dir.y + mat.m02 * dir.z,
+        mat.m10 * dir.x + mat.m11 * dir.y + mat.m12 * dir.z,
+        mat.m20 * dir.x + mat.m21 * dir.y + mat.m22 * dir.z
+    );
+}
 Vec3f transformNormal(const Matrix4x4f& modelMatrix, const Vec3f& normal) {
     // 简化实现: 假设模型矩阵只有旋转和均匀缩放，可以直接使用模型矩阵
+
+    return normalize(transformDir(modelMatrix,normal));
+}
+
+// 透视校正插值函数 (Vec2f/float2 版本)
+Vec2f interpolatePerspectiveCorrect(
+    const Vec2f &attr0, const Vec2f &attr1, const Vec2f &attr2, // 三个顶点的属性值
+    const Vec3f &lambda,                                        // 重心坐标系数
+    const Vec3f &w,                                             // 顶点的 1/w 值（透视除法前的倒数）
+    float w_correct                                             // 插值后的 1/w 用于校正
+)
+{
+    Vec2f result;
+    result.x = (lambda.x * attr0.x * w.x + lambda.y * attr1.x * w.y + lambda.z * attr2.x * w.z) * w_correct;
+    result.y = (lambda.x * attr0.y * w.x + lambda.y * attr1.y * w.y + lambda.z * attr2.y * w.z) * w_correct;
+    return result;
+}
+
+// 透视校正插值函数 (Vec3f/float3 版本)
+Vec3f interpolatePerspectiveCorrect(
+    const Vec3f &attr0, const Vec3f &attr1, const Vec3f &attr2, // 三个顶点的属性值
+    const Vec3f &lambda,                                        // 重心坐标系数
+    const Vec3f &w,                                             // 顶点的 1/w 值（透视除法前的倒数）
+    float w_correct                                             // 插值后的 1/w 用于校正
+)
+{
     Vec3f result;
-    result.x = normal.x * modelMatrix.m00 + normal.y * modelMatrix.m01 + normal.z * modelMatrix.m02;
-    result.y = normal.x * modelMatrix.m10 + normal.y * modelMatrix.m11 + normal.z * modelMatrix.m12;
-    result.z = normal.x * modelMatrix.m20 + normal.y * modelMatrix.m21 + normal.z * modelMatrix.m22;
-    
-    return normalize(result);
+    result.x = (lambda.x * attr0.x * w.x + lambda.y * attr1.x * w.y + lambda.z * attr2.x * w.z) * w_correct;
+    result.y = (lambda.x * attr0.y * w.x + lambda.y * attr1.y * w.y + lambda.z * attr2.y * w.z) * w_correct;
+    result.z = (lambda.x * attr0.z * w.x + lambda.y * attr1.z * w.y + lambda.z * attr2.z * w.z) * w_correct;
+    return result;
+}
+
+// 透视校正插值函数 (Vec4f/float4 版本)
+Vec4f interpolatePerspectiveCorrect(
+    const Vec4f &attr0, const Vec4f &attr1, const Vec4f &attr2, // 三个顶点的属性值
+    const Vec3f &lambda,                                        // 重心坐标系数
+    const Vec3f &w,                                             // 顶点的 1/w 值（透视除法前的倒数）
+    float w_correct                                             // 插值后的 1/w 用于校正
+)
+{
+    Vec4f result;
+    result.x = (lambda.x * attr0.x * w.x + lambda.y * attr1.x * w.y + lambda.z * attr2.x * w.z) * w_correct;
+    result.y = (lambda.x * attr0.y * w.x + lambda.y * attr1.y * w.y + lambda.z * attr2.y * w.z) * w_correct;
+    result.z = (lambda.x * attr0.z * w.x + lambda.y * attr1.z * w.y + lambda.z * attr2.z * w.z) * w_correct;
+    result.w = (lambda.x * attr0.w * w.x + lambda.y * attr1.w * w.y + lambda.z * attr2.w * w.z) * w_correct;
+    return result;
 }
 
 // Shader Common - smoothstep 实现
@@ -385,7 +245,6 @@ float smoothstep(float edge0, float edge1, float x) {
 }
 
 // 模板函数 smoothstep 的向量特化实现
-template<>
 Vec2f smoothstep(Vec2f edge0, Vec2f edge1, Vec2f x) {
     Vec2f result;
     result.x = smoothstep(edge0.x, edge1.x, x.x);
@@ -393,7 +252,6 @@ Vec2f smoothstep(Vec2f edge0, Vec2f edge1, Vec2f x) {
     return result;
 }
 
-template<>
 Vec3f smoothstep(Vec3f edge0, Vec3f edge1, Vec3f x) {
     Vec3f result;
     result.x = smoothstep(edge0.x, edge1.x, x.x);
@@ -402,7 +260,6 @@ Vec3f smoothstep(Vec3f edge0, Vec3f edge1, Vec3f x) {
     return result;
 }
 
-template<>
 Vec4f smoothstep(Vec4f edge0, Vec4f edge1, Vec4f x) {
     Vec4f result;
     result.x = smoothstep(edge0.x, edge1.x, x.x);

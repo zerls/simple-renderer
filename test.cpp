@@ -6,40 +6,6 @@
 #include "renderer.h"
 #include "shader.h"
 
-// 创建一个简单的三角形网格
-std::shared_ptr<Mesh> createTriangleMesh(const Color &color)
-{
-    auto mesh = std::make_shared<Mesh>();
-
-    // 添加顶点
-    mesh->addVertex(Vec3f(-0.5f, -0.5f, 0.0f));
-    mesh->addVertex(Vec3f(0.5f, -0.5f, 0.0f));
-    mesh->addVertex(Vec3f(0.0f, 0.5f, 0.0f));
-
-    // 添加法线
-    mesh->addNormal(Vec3f(0.0f, 0.0f, 1.0f));
-    mesh->addNormal(Vec3f(0.0f, 0.0f, 1.0f));
-    mesh->addNormal(Vec3f(0.0f, 0.0f, 1.0f));
-
-    // 添加纹理坐标
-    mesh->addTexCoord(Vec2f(0.0f, 0.0f));
-    mesh->addTexCoord(Vec2f(1.0f, 0.0f));
-    mesh->addTexCoord(Vec2f(0.5f, 1.0f));
-
-    // 添加面
-    Face face;
-    face.vertexIndices = {0, 1, 2};
-    face.normalIndices = {0, 1, 2};
-    face.texCoordIndices = {0, 1, 2};
-    mesh->addFace(face);
-
-    // 设置颜色
-    mesh->setColor(color);
-
-    return mesh;
-}
-
-
 // 将帧缓冲区保存为 PPM 图像文件
 void saveToPPM(const std::string& filename, const FrameBuffer& frameBuffer) {
     std::ofstream file(filename, std::ios::binary);

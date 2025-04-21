@@ -3,6 +3,7 @@
 #include <vector>
 #include "maths.h"
 
+//TODO ？Shader 中的 Color 使用 0-1 的浮点取值范围，只在写入 FrameBufer时候用到 Color，即片元着色器输出的为 float4;
 // 定义颜色结构体
 struct Color
 {
@@ -55,12 +56,16 @@ struct Vertex
 {
     Vec3f position; // 位置
     Vec3f normal;   // 法线
+    Vec4f tangent;  // 切线 (w分量为符号)
     Vec2f texCoord; // 纹理坐标
-    Color color;   // 顶点颜色
+    Color color;    // 顶点颜色
 
     Vertex() = default;
     Vertex(const Vec3f &pos, const Color &col) : position(pos), color(col) {}
-    Vertex(const Vec3f &pos, const Vec3f &norm, const Vec2f &tex, const Color &col) : position(pos), normal(norm), texCoord(tex), color(col) {}
+    Vertex(const Vec3f &pos, const Vec3f &norm, const Vec2f &tex, const Color &col) 
+        : position(pos), normal(norm), texCoord(tex), color(col), tangent(0.0f, 0.0f, 0.0f, 1.0f) {}
+    Vertex(const Vec3f &pos, const Vec3f &norm, const Vec4f &tan, const Vec2f &tex, const Color &col) 
+        : position(pos), normal(norm), tangent(tan), texCoord(tex), color(col) {}
 };
 
 // 三角形结构体
@@ -82,6 +87,7 @@ struct Face {
     std::vector<int> vertexIndices;    // 顶点索引
     std::vector<int> texCoordIndices;  // 纹理坐标索引
     std::vector<int> normalIndices;    // 法线索引
+    std::vector<int> tangentIndices;   // 切线索引
     
     Face() = default;
 };

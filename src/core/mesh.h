@@ -19,7 +19,11 @@ public:
     void addVertex(const Vec3f& v);
     void addTexCoord(const Vec2f& t);
     void addNormal(const Vec3f& n);
+    void addTangent(const Vec4f& t);  // 新增
     void addFace(const Face& f);
+    
+    // 计算切线（如果模型没有切线数据）
+    void calculateTangents();  // 新增
     
     // 计算面法线（如果OBJ文件没有提供法线）
     void calculateFaceNormals();
@@ -52,10 +56,9 @@ public:
     std::vector<Vec3f> vertices;         // 顶点
     std::vector<Vec2f> texCoords;        // 纹理坐标
     std::vector<Vec3f> normals;          // 法线
+    std::vector<Vec4f> tangents;         // 切线 (新增)
     std::vector<Face> faces;             // 面
     std::vector<Color> vertexColors;     // 顶点颜色
-
-    
 };
 
 // OBJ文件加载函数

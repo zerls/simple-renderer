@@ -1,9 +1,7 @@
-// main.cpp
-// 使用 Scene 类的测试程序
 #include "scene.h"
 #include "test.h"
-// #include <iostream>
 
+//TODO 代码的框架目前需要优化，Materials,Shaders 组织有些混乱，Renderer中需要将部分功能进行封装
 int main()
 {
     const int WIDTH = 800;
@@ -27,6 +25,7 @@ int main()
     Light light(Vec3f(2.0f, 2.0f, 5.0f), Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.2f);
     scene.setLight(light);
 
+    //TODO 实现资源池Resource加载(已经读取的资源从缓存中获取)，使用 Scene 类管理 Materials,Textures,Meshs资源
     // 创建材质 - 红色材质带漫反射贴图
     auto material1 = scene.createMaterialWithTextures(
         "RedMaterial",

@@ -17,7 +17,7 @@ struct ShaderUniforms
     Matrix4x4f mvpMatrix;   // 组合的MVP矩阵
     float3 eyePosition;     // 相机位置（世界空间）
     Light light;            // 光源信息
-    Surface surface;      // 材质信息
+    Surface surface;        // 材质信息
 };
 
 // 顶点着色器输入
@@ -25,6 +25,7 @@ struct VertexAttributes
 {
     float3 position; // 顶点位置（模型空间）
     float3 normal;   // 顶点法线（模型空间）
+    float4 tangent;  // 顶点切线（模型空间），w分量为符号
     Vec2f texCoord;  // 纹理坐标
     Color color;     // 顶点颜色
 };
@@ -32,11 +33,12 @@ struct VertexAttributes
 // 顶点着色器到片元着色器的传递变量
 struct Varyings
 {
-    float3 position; // 插值后的位置（世界空间）
-    float3 normal;   // 插值后的法线（世界空间）
-    Vec2f texCoord;  // 插值后的纹理坐标
-    Color color;     // 插值后的颜色
-    float depth;     // 深度值（用于深度测试）
+    float3 position;    // 插值后的位置（世界空间）
+    float3 normal;      // 插值后的法线（世界空间）
+    float4 tangent;     // 插值后的切线（世界空间），w分量为符号
+    Vec2f texCoord;     // 插值后的纹理坐标
+    Color color;        // 插值后的颜色
+    float depth;        // 深度值（用于深度测试）
 };
 
 // 片元着色器输出
@@ -64,6 +66,7 @@ public:
     // 输出：片元颜色
     virtual FragmentOutput fragmentShader(const Varyings &input) = 0;
 };
+
 // 基础着色器实现（无光照）
 class BasicShader : public IShader
 {
@@ -88,7 +91,7 @@ public:
     virtual FragmentOutput fragmentShader(const Varyings &input) override;
 };
 
-//  自定义着色器示例：卡通渲染着色器
+// 自定义着色器示例：卡通渲染着色器
 class ToonShader : public IShader
 {
 protected:
@@ -107,21 +110,20 @@ std::shared_ptr<IShader> createPhongShader();
 std::shared_ptr<IShader> createToonShader();
 
 class TexturedPhongShader : public PhongShader {
-    private:
-        std::shared_ptr<Texture> diffuseMap = nullptr;
-        std::shared_ptr<Texture> normalMap = nullptr;
-        
-    public:
-        void setDiffuseMap(std::shared_ptr<Texture> texture) { diffuseMap = texture; }
-        void setNormalMap(std::shared_ptr<Texture> texture) { normalMap = texture; }
-        
-        virtual FragmentOutput fragmentShader(const Varyings &input) override;
-    };
+private:
+    std::shared_ptr<Texture> diffuseMap = nullptr;
+    std::shared_ptr<Texture> normalMap = nullptr;
     
-    // 工厂函数
-    std::shared_ptr<IShader> createTexturedPhongShader(
-        std::shared_ptr<Texture> diffuseMap = nullptr,
-        std::shared_ptr<Texture> normalMap = nullptr);
+public:
+    void setDiffuseMap(std::shared_ptr<Texture> texture) { diffuseMap = texture; }
+    void setNormalMap(std::shared_ptr<Texture> texture) { normalMap = texture; }
+    
+    virtual FragmentOutput fragmentShader(const Varyings &input) override;
+};
 
+// 工厂函数
+std::shared_ptr<IShader> createTexturedPhongShader(
+    std::shared_ptr<Texture> diffuseMap = nullptr,
+    std::shared_ptr<Texture> normalMap = nullptr);
 
 #endif

@@ -1,4 +1,5 @@
 .DS_Store
+.VSCodeCounter
 build
 .vscode
 output

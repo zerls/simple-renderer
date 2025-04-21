@@ -31,9 +31,88 @@ void Mesh::addNormal(const Vec3f& n) {
     normals.push_back(n);
 }
 
+// 添加切线
+void Mesh::addTangent(const Vec4f& t) {
+    tangents.push_back(t);
+}
+
 // 添加面
 void Mesh::addFace(const Face& f) {
     faces.push_back(f);
+}
+
+// 计算切线向量
+void Mesh::calculateTangents() {
+    if (texCoords.empty() || normals.empty()) {
+        std::cerr << "需要纹理坐标和法线来计算切线" << std::endl;
+        return;
+    }
+    
+    // 清空现有切线
+    tangents.clear();
+    tangents.resize(vertices.size(), Vec4f(0, 0, 0, 0));
+    
+    std::vector<Vec3f> tan1(vertices.size(), Vec3f(0, 0, 0));
+    std::vector<Vec3f> tan2(vertices.size(), Vec3f(0, 0, 0));
+    
+    // 计算每个三角形的切线和副切线
+    for (const Face& face : faces) {
+        if (face.vertexIndices.size() < 3) continue;
+        
+        // 对于多边形面，转换为三角形
+        for (size_t i = 1; i < face.vertexIndices.size() - 1; ++i) {
+            int i0 = face.vertexIndices[0];
+            int i1 = face.vertexIndices[i];
+            int i2 = face.vertexIndices[i + 1];
+            
+            const Vec3f& v0 = vertices[i0];
+            const Vec3f& v1 = vertices[i1];
+            const Vec3f& v2 = vertices[i2];
+            
+            Vec2f uv0 = face.texCoordIndices.size() > 0 ? texCoords[face.texCoordIndices[0]] : Vec2f(0, 0);
+            Vec2f uv1 = face.texCoordIndices.size() > i ? texCoords[face.texCoordIndices[i]] : Vec2f(0, 0);
+            Vec2f uv2 = face.texCoordIndices.size() > i + 1 ? texCoords[face.texCoordIndices[i + 1]] : Vec2f(0, 0);
+            
+            Vec3f edge1 = v1 - v0;
+            Vec3f edge2 = v2 - v0;
+            Vec2f deltaUV1 = uv1 - uv0;
+            Vec2f deltaUV2 = uv2 - uv0;
+            
+            float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+            
+            Vec3f tangent;
+            tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+            tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+            tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+            
+            Vec3f bitangent;
+            bitangent.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+            bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+            bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+            
+            tan1[i0] = tan1[i0] + tangent;
+            tan1[i1] = tan1[i1] + tangent;
+            tan1[i2] = tan1[i2] + tangent;
+            
+            tan2[i0] = tan2[i0] + bitangent;
+            tan2[i1] = tan2[i1] + bitangent;
+            tan2[i2] = tan2[i2] + bitangent;
+        }
+    }
+    
+    // 计算最终的切线和手性
+    for (size_t i = 0; i < vertices.size(); ++i) {
+        const Vec3f& n = normals[i];
+        const Vec3f& t = tan1[i];
+        
+        // Gram-Schmidt正交化
+        Vec3f tangent = normalize(t - n * dot(n, t));
+        
+        // 计算手性
+        float handedness = (dot(cross(n, t), tan2[i]) < 0.0f) ? -1.0f : 1.0f;
+        
+        tangents[i] = Vec4f(tangent.x, tangent.y, tangent.z, handedness);
+    }
 }
 
 // 计算面法线
@@ -183,6 +262,24 @@ std::vector<Triangle> Mesh::triangulate(const Face& face) const {
             normal2 = normals[idx2];
         }
         
+        // 默认切线
+        Vec4f tangent0 = Vec4f(1, 0, 0, 1);
+        Vec4f tangent1 = Vec4f(1, 0, 0, 1);
+        Vec4f tangent2 = Vec4f(1, 0, 0, 1);
+        
+        // 如果有切线索引，则使用指定的切线
+        if (!face.tangentIndices.empty() && tangents.size() > 0) {
+            if (face.tangentIndices.size() > 0) tangent0 = tangents[face.tangentIndices[0]];
+            if (face.tangentIndices.size() > i) tangent1 = tangents[face.tangentIndices[i]];
+            if (face.tangentIndices.size() > i + 1) tangent2 = tangents[face.tangentIndices[i + 1]];
+        }
+        // 如果没有指定切线，但有计算顶点切线，则使用顶点切线
+        else if (tangents.size() >= vertices.size()) {
+            tangent0 = tangents[idx0];
+            tangent1 = tangents[idx1];
+            tangent2 = tangents[idx2];
+        }
+        
         // 默认纹理坐标
         Vec2f tex0 = Vec2f(0, 0);
         Vec2f tex1 = Vec2f(1, 0);
@@ -201,9 +298,9 @@ std::vector<Triangle> Mesh::triangulate(const Face& face) const {
         Color color2 = vertexColors[idx2];
         
         // 创建顶点
-        triangle.vertices[0] = Vertex(pos0, normal0, tex0, color0);
-        triangle.vertices[1] = Vertex(pos1, normal1, tex1, color1);
-        triangle.vertices[2] = Vertex(pos2, normal2, tex2, color2);
+        triangle.vertices[0] = Vertex(pos0, normal0, tangent0, tex0, color0);
+        triangle.vertices[1] = Vertex(pos1, normal1, tangent1, tex1, color1);
+        triangle.vertices[2] = Vertex(pos2, normal2, tangent2, tex2, color2);
         
         triangles.push_back(triangle);
     }
@@ -240,7 +337,6 @@ std::shared_ptr<Mesh> loadOBJ(const std::string& filename) {
             mesh->addTexCoord(Vec2f(u, v));
         }
         else if (token == "vn") {
-            // 读取法线
             float x, y, z;
             iss >> x >> y >> z;
             mesh->addNormal(normalize(Vec3f(x, y, z)));
@@ -283,6 +379,12 @@ std::shared_ptr<Mesh> loadOBJ(const std::string& filename) {
     if (mesh->getVertexCount() > 0 && mesh->getFaceCount() > 0 && 
         (mesh->normals.empty() || mesh->normals.size() < mesh->vertices.size())) {
         mesh->calculateVertexNormals();
+    }
+    
+    // 如果有纹理坐标和法线，但没有切线，则计算切线
+    if (mesh->getVertexCount() > 0 && mesh->getFaceCount() > 0 && 
+        !mesh->texCoords.empty() && !mesh->normals.empty() && mesh->tangents.empty()) {
+        mesh->calculateTangents();
     }
     
     // 中心化网格
