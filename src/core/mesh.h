@@ -1,6 +1,4 @@
-// mesh.h
-// 定义Mesh类，用于表示3D模型
-
+// mesh.h修改
 #pragma once
 
 #include <vector>
@@ -8,9 +6,10 @@
 #include <memory>
 #include "maths.h"
 #include "common.h"
+#include "IResource.h"
 
 // 定义Mesh类
-class Mesh {
+class Mesh : public IResource {
 public:
     Mesh();
     ~Mesh() = default;
@@ -19,16 +18,16 @@ public:
     void addVertex(const Vec3f& v);
     void addTexCoord(const Vec2f& t);
     void addNormal(const Vec3f& n);
-    void addTangent(const Vec4f& t);  // 新增
+    void addTangent(const Vec4f& t);
     void addFace(const Face& f);
     
-    // 计算切线（如果模型没有切线数据）
-    void calculateTangents();  // 新增
+    // 计算切线向量
+    void calculateTangents();
     
-    // 计算面法线（如果OBJ文件没有提供法线）
+    // 计算面法线
     void calculateFaceNormals();
     
-    // 计算顶点法线（通过平均相邻面的法线）
+    // 计算顶点法线
     void calculateVertexNormals();
     
     // 计算边界框
@@ -40,25 +39,36 @@ public:
     // 获取面数量
     size_t getFaceCount() const { return faces.size(); }
     
+    // 获取三角形数量
+    size_t getTriangleCount() const { return triangles.size(); }
+    
     // 设置颜色
     void setColor(const Color& color);
     
-    // 中心化网格（使其中心位于原点）
+    // 中心化网格
     void centerize();
     
-    // 将面转换为三角形（如果面有多于3个顶点）
-    std::vector<Triangle> triangulate(const Face& face) const;
+    // 预先将所有面转换为三角形
+    void triangulate();
+    
+    // 获取预计算的三角形
+    const std::vector<Triangle>& getTriangles() const { return triangles; }
     
     // 获取顶点颜色
-    const std::vector<Color>& getVertexColors() const { return vertexColors; }
+    const std::vector<float4>& getVertexColors() const { return vertexColors; }
     
     // 数据成员
     std::vector<Vec3f> vertices;         // 顶点
     std::vector<Vec2f> texCoords;        // 纹理坐标
     std::vector<Vec3f> normals;          // 法线
-    std::vector<Vec4f> tangents;         // 切线 (新增)
+    std::vector<Vec4f> tangents;         // 切线
     std::vector<Face> faces;             // 面
-    std::vector<Color> vertexColors;     // 顶点颜色
+    std::vector<Triangle> triangles;     // 预计算的三角形
+    std::vector<float4> vertexColors;    // 顶点颜色(改为float4)
+    
+private:
+    // 将单个面转换为三角形
+    std::vector<Triangle> triangulateFace(const Face& face) const;
 };
 
 // OBJ文件加载函数

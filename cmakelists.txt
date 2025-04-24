@@ -18,8 +18,9 @@ set(SRC_LIST
     # shader/shader.cpp  
     src/shader/basic_shader.cpp  # ← 手动指定子目录文件
     src/shader/phong_shader.cpp  
-    src/shader/toon_shader.cpp
-    src/shader/textured_phong_shader.cpp  
+    src/shader/shadow_map_shader.cpp
+    # src/shader/toon_shader.cpp
+    # src/shader/textured_phong_shader.cpp  
 )
 
 add_executable(SimpleRenderer ${SRC_LIST})

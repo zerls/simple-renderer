@@ -1,9 +1,41 @@
-// phong_shader.cpp 中的修改部分
-// 更新顶点着色器以支持切线变换
-
+// 对phong_shader.cpp添加阴影相关代码
 #include "shader.h"
 #include <algorithm>
 #include <cmath>
+
+// 实现阴影计算函数
+float PhongShader::calculateShadow(const float4& positionLightSpace) const
+{
+    if (!uniforms.useShadowMap || !uniforms.shadowMap) {
+        return 1.0f; // 无阴影，完全亮
+    }
+    
+    // 执行透视除法
+    float3 projCoords = float3(
+        positionLightSpace.x / positionLightSpace.w,
+        positionLightSpace.y / positionLightSpace.w,
+        positionLightSpace.z / positionLightSpace.w
+    );
+    
+    // 变换到[0,1]范围
+    projCoords = float3(
+        (projCoords.x + 1.0f) * 0.5f,
+        (projCoords.y + 1.0f) * 0.5f,
+        projCoords.z
+    );
+    
+    // 获取最近深度值
+    float closestDepth = uniforms.shadowMap->sample(float2(projCoords.x, projCoords.y)).x;
+    
+    // 获取当前片段在光源视角下的深度
+    float currentDepth = projCoords.z;
+    
+    // 应用阴影偏移，避免阴影痤疮
+    const float bias = 0.005f;
+    
+    // 执行深度比较
+    return (currentDepth - bias > closestDepth) ? 0.5f : 1.0f;
+}
 
 void PhongShader::setUniforms(const ShaderUniforms &uniforms)
 {
@@ -19,7 +51,6 @@ float3 PhongShader::vertexShader(const VertexAttributes &attributes, Varyings &o
     output.position = transform(uniforms.modelMatrix, attributes.position);
     
     // 变换法线到世界空间并归一化
-    // 注意：如果模型矩阵包含非均匀缩放，这里应该使用逆转置矩阵
     output.normal = normalize(transformNormal(uniforms.modelMatrix, attributes.normal));
     
     // 变换切线到世界空间并归一化
@@ -32,6 +63,12 @@ float3 PhongShader::vertexShader(const VertexAttributes &attributes, Varyings &o
     
     // 存储深度用于深度测试
     output.depth = positionClip.z;
+    
+    // 如果启用了阴影映射，计算顶点在光源空间的位置
+    if (uniforms.useShadowMap) {
+        // output.positionLightSpace = uniforms.lightSpaceMatrix * Vec4f(output.position.x, output.position.y, output.position.z, 1.0f);
+        output.positionLightSpace = uniforms.lightSpaceMatrix.transform(Vec4f(output.position,1.0f));
+    }
     
     return positionClip;
 }
@@ -60,8 +97,14 @@ FragmentOutput PhongShader::fragmentShader(const Varyings &input)
     float spec = std::pow(std::max(NoH, 0.0f), uniforms.surface.shininess);
     float3 specular = uniforms.surface.specular * uniforms.light.color * spec * uniforms.light.intensity;
     
+    // 计算阴影因子
+    float shadow = 1.0f;
+    if (uniforms.useShadowMap) {
+        shadow = calculateShadow(input.positionLightSpace);
+    }
+    
     // 合并所有光照分量
-    float3 result = ambient + diffuse + specular;
+    float3 result = ambient + (diffuse + specular) * shadow  ;
     
     // 确保结果在 [0,1] 范围内
     result.x = std::min(result.x, 1.0f);
@@ -69,15 +112,17 @@ FragmentOutput PhongShader::fragmentShader(const Varyings &input)
     result.z = std::min(result.z, 1.0f);
     
     // 应用顶点颜色
-    output.color = Color(
-        static_cast<uint8_t>(result.x * 255 * (input.color.r / 255.0f)),
-        static_cast<uint8_t>(result.y * 255 * (input.color.g / 255.0f)),
-        static_cast<uint8_t>(result.z * 255 * (input.color.b / 255.0f)),
-        input.color.a);
+    output.color = float4(
+        result.x * input.color.x,
+        result.y * input.color.y,
+        result.z * input.color.z,
+        input.color.w);
     
     return output;
 }
 
-std::shared_ptr<IShader> createPhongShader() {
+// 创建Phong着色器
+std::shared_ptr<IShader> createPhongShader()
+{
     return std::make_shared<PhongShader>();
 }

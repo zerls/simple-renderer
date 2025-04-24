@@ -7,9 +7,9 @@
 #include <algorithm>
 #include <cmath>
 
-// Texture构造函数
-Texture::Texture() {
-    // 默认构造函数不执行特殊操作
+// 在纹理构造函数中初始化
+Texture::Texture() : IResource(ResourceType::TEXTURE), textureType(TextureType::DIFFUSE) {
+    // 初始化代码保持不变
 }
 
 // 从TGA文件加载纹理
@@ -99,14 +99,14 @@ bool Texture::loadFromTGA(const std::string& filename) {
 }
 
 // 采样纹理（使用双线性插值）
-Color Texture::sample(float2 uv) const {
+float4 Texture::sample(float2 uv) const {
     return sampleBilinear(uv.x, uv.y);
 }
 
 // 最近点采样
-Color Texture::sampleNearest(float u, float v) const {
+float4 Texture::sampleNearest(float u, float v) const {
     if (data.empty() || width <= 0 || height <= 0) {
-        return Color(255, 0, 255); // 返回粉色表示错误
+        return float4(1.0f, 0.0f, 1.0f, 1.0f); // 返回粉色表示错误
     }
     
     // 重复纹理坐标 (Wrap/Repeat模式)
@@ -124,22 +124,35 @@ Color Texture::sampleNearest(float u, float v) const {
     // 计算像素索引
     size_t index = (y * width + x) * channels;
     
-    // 返回颜色
+    // 返回颜色（将uint8转换为float范围[0,1]）
     if (channels == 3) {
-        return Color(data[index], data[index + 1], data[index + 2]);
+        return float4(
+            static_cast<float>(data[index]) / 255.0f,
+            static_cast<float>(data[index + 1]) / 255.0f,
+            static_cast<float>(data[index + 2]) / 255.0f,
+            1.0f
+        );
     } else if (channels == 4) {
-        return Color(data[index], data[index + 1], data[index + 2], data[index + 3]);
+        return float4(
+            static_cast<float>(data[index]) / 255.0f,
+            static_cast<float>(data[index + 1]) / 255.0f,
+            static_cast<float>(data[index + 2]) / 255.0f,
+            static_cast<float>(data[index + 3]) / 255.0f
+        );
+    } else if (channels == 1) {
+        // 单通道纹理（如深度图）
+        float value = static_cast<float>(data[index]) / 255.0f;
+        return float4(value, value, value, 1.0f);
     } else {
         // 对于其他通道数的简单处理
-        uint8_t gray = channels == 1 ? data[index] : 255;
-        return Color(gray, gray, gray);
+        return float4(1.0f, 1.0f, 1.0f, 1.0f);
     }
 }
 
 // 双线性插值采样
-Color Texture::sampleBilinear(float u, float v) const {
+float4 Texture::sampleBilinear(float u, float v) const {
     if (data.empty() || width <= 0 || height <= 0) {
-        return Color(255, 0, 255); // 返回粉色表示错误
+        return float4(1.0f, 0.0f, 1.0f, 1.0f); // 返回粉色表示错误
     }
     
     // 重复纹理坐标 (Wrap/Repeat模式)
@@ -163,16 +176,29 @@ Color Texture::sampleBilinear(float u, float v) const {
     int y1 = ((y + 1) % height + height) % height;
     
     // 获取四个最近的像素
-    Color c00 = sampleNearest(static_cast<float>(x0) / width, static_cast<float>(y0) / height);
-    Color c10 = sampleNearest(static_cast<float>(x1) / width, static_cast<float>(y0) / height);
-    Color c01 = sampleNearest(static_cast<float>(x0) / width, static_cast<float>(y1) / height);
-    Color c11 = sampleNearest(static_cast<float>(x1) / width, static_cast<float>(y1) / height);
+    float4 c00 = sampleNearest(static_cast<float>(x0) / width, static_cast<float>(y0) / height);
+    float4 c10 = sampleNearest(static_cast<float>(x1) / width, static_cast<float>(y0) / height);
+    float4 c01 = sampleNearest(static_cast<float>(x0) / width, static_cast<float>(y1) / height);
+    float4 c11 = sampleNearest(static_cast<float>(x1) / width, static_cast<float>(y1) / height);
     
     // 双线性插值
-    Color c0 = c00.blend(c10, fx);
-    Color c1 = c01.blend(c11, fx);
-    return c0.blend(c1, fy);
+    float4 c0 = c00 * (1.0f - fx) + c10 * fx;
+    float4 c1 = c01 * (1.0f - fx) + c11 * fx;
+    return c0 * (1.0f - fy) + c1 * fy;
 }
+
+// 添加特殊的阴影贴图采样方法
+float Texture::sampleShadowMap(float2 uv) const {
+    if (textureType != TextureType::SHADOW) {
+        std::cerr << "警告：尝试对非阴影贴图使用sampleShadowMap方法" << std::endl;
+        return 1.0f;  // 返回最远深度
+    }
+    
+    // 阴影贴图通常存储深度值，我们只需要一个通道
+    float4 color = sampleNearest(uv.x, uv.y);
+    return color.x;  // 返回深度值
+}
+
 
 // 加载纹理工厂函数
 std::shared_ptr<Texture> loadTexture(const std::string& filename, TextureType type) {
@@ -183,3 +209,4 @@ std::shared_ptr<Texture> loadTexture(const std::string& filename, TextureType ty
     }
     return nullptr;
 }
+

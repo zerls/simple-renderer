@@ -10,15 +10,15 @@
 #include <cmath>
 
 // Mesh构造函数
-Mesh::Mesh() {
-    // 不再包含材质和着色器的初始化
+Mesh::Mesh() : IResource(ResourceType::MESH) {
+    // Rest of your constructor implementation
 }
 
 // 添加顶点
 void Mesh::addVertex(const Vec3f& v) {
     vertices.push_back(v);
     // 添加默认顶点颜色（白色）
-    vertexColors.push_back(Color(255, 255, 255));
+    vertexColors.push_back(float4(1.0f));
 }
 
 // 添加纹理坐标
@@ -200,7 +200,7 @@ void Mesh::calculateBoundingBox(Vec3f& min, Vec3f& max) const {
 // 设置颜色
 void Mesh::setColor(const Color& color) {
     vertexColors.clear();
-    vertexColors.resize(vertices.size(), color);
+    vertexColors.resize(vertices.size(), color.toFloat4());
 }
 
 // 中心化网格
@@ -222,8 +222,24 @@ void Mesh::centerize() {
     }
 }
 
-// 将面转换为三角形
-std::vector<Triangle> Mesh::triangulate(const Face& face) const {
+void Mesh::triangulate()
+{
+    triangles.clear();
+    
+    for (const Face& face : faces) {
+        // 获取当前面的三角形数组
+        std::vector<Triangle> faceTriangles = triangulateFace(face);
+        
+        // 将获取到的三角形添加到网格的triangles集合中
+        triangles.insert(triangles.end(), faceTriangles.begin(), faceTriangles.end());
+    }
+    
+    std::cout << "已将 " << faces.size() << " 个面转换为 " << triangles.size() << " 个三角形。" << std::endl;
+}
+
+// 将triangulateFace方法更新为用float4存储顶点颜色
+std::vector<Triangle> Mesh::triangulateFace(const Face& face) const
+{
     std::vector<Triangle> triangles;
     
     if (face.vertexIndices.size() < 3) {
@@ -293,9 +309,9 @@ std::vector<Triangle> Mesh::triangulate(const Face& face) const {
         }
         
         // 获取顶点颜色
-        Color color0 = vertexColors[idx0];
-        Color color1 = vertexColors[idx1];
-        Color color2 = vertexColors[idx2];
+        float4 color0 = vertexColors[idx0];
+        float4 color1 = vertexColors[idx1];
+        float4 color2 = vertexColors[idx2];
         
         // 创建顶点
         triangle.vertices[0] = Vertex(pos0, normal0, tangent0, tex0, color0);
@@ -390,8 +406,11 @@ std::shared_ptr<Mesh> loadOBJ(const std::string& filename) {
     // 中心化网格
     mesh->centerize();
     
+    // 预先将所有面转换为三角形
+    mesh->triangulate();
+    
     std::cout << "已加载 " << filename << "：" << mesh->getVertexCount() << " 个顶点，" 
-              << mesh->getFaceCount() << " 个面。" << std::endl;
+              << mesh->getFaceCount() << " 个面，" << mesh->getTriangleCount() << " 个三角形。" << std::endl;
     
     return mesh;
 }

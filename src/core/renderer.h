@@ -1,3 +1,4 @@
+// renderer.h的修改
 #pragma once
 
 #include "maths.h"
@@ -17,11 +18,21 @@ public:
     FrameBuffer(int width, int height);
     ~FrameBuffer() = default;
 
-    void setPixel(int x, int y, float depth, const Color &color);             // 设置像素（带深度测试）
-    void setPixel(int x, int y, const Color &color);                          // 设置像素（不带深度测试）
-    float getDepth(int x, int y) const;                                       // 获取深度值
-    void clear(const Color &color = Color(0, 0, 0, 255), float depth = 1.0f); // 清除缓冲区
-    const uint8_t *getData() const { return frameData.data(); }               // 获取帧缓冲区数据
+    // 设置像素（将Color替换为float4）
+    void setPixel(int x, int y, float depth, const float4 &color);
+    void setPixel(int x, int y, const float4 &color);
+    
+    // 获取深度值
+    float getDepth(int x, int y) const;
+    
+    // 深度测试（返回是否通过测试）
+    bool depthTest(int x, int y, float depth) const;
+    
+    // 清除缓冲区
+    void clear(const float4 &color = float4(0, 0, 0, 1), float depth = 1.0f);
+    
+    // 获取帧缓冲区数据
+    const uint8_t *getData() const { return frameData.data(); }
 
     int getWidth() const { return width; }
     int getHeight() const { return height; }
@@ -32,9 +43,8 @@ private:
     std::vector<uint8_t> frameData; // 按 RGBA 格式存储
     std::vector<float> depthBuffer; // 深度缓冲区
 
-    bool isValidCoord(int x, int y) const { return x >= 0 && x < width && y >= 0 && y < height; } // 检查坐标是否在有效范围内
-
-    int calcIndex(int x, int y) const { return y * width + x; } // 计算索引
+    bool isValidCoord(int x, int y) const { return x >= 0 && x < width && y >= 0 && y < height; }
+    int calcIndex(int x, int y) const { return y * width + x; }
 };
 
 // 光栅化渲染器类
@@ -44,12 +54,14 @@ public:
     Renderer(int width, int height);
     ~Renderer() = default;
 
-    void setShader(std::shared_ptr<IShader> shader) { this->shader = shader; } // 设置当前着色器（全局默认着色器）
+    void setShader(std::shared_ptr<IShader> shader) { this->shader = shader; }
     std::shared_ptr<IShader> getShader() const { return shader; }
 
-    void rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShader> shader); // 栅格化三角形（使用指定的着色器）
+    // 渲染三角形（使用指定的着色器）
+    void rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShader> shader);
 
-    void clear(const Color &color = Color(0, 0, 0, 255)); // 清除屏幕
+    // 清除屏幕
+    void clear(const float4 &color = float4(0, 0, 0, 1));
 
     // 设置变换矩阵
     void setModelMatrix(const Matrix4x4f &matrix) { modelMatrix = matrix; }
@@ -62,17 +74,26 @@ public:
     Matrix4x4f getProjMatrix() const { return projMatrix; }
     Matrix4x4f getMVPMatrix() const { return projMatrix * viewMatrix * modelMatrix; }
 
-    Vec3f transformVertex(const Vec3f &position, const Matrix4x4f &mvpMatrix); // 变换顶点位置
+    // 顶点变换和屏幕映射
+    Vec3f transformVertex(const Vec3f &position, const Matrix4x4f &mvpMatrix);
+    Vec3f screenMapping(const Vec3f &clipPos);
 
-    Vec3f screenMapping(const Vec3f &clipPos); // 屏幕映射函数
+    // 获取帧缓冲
+    const FrameBuffer &getFrameBuffer() const { return *frameBuffer; }
+    
+    // 创建阴影贴图
+    std::shared_ptr<Texture> createShadowMap(int width, int height);
+    
+    // 渲染阴影贴图
+    void shadowPass(const std::vector<std::pair<std::shared_ptr<Mesh>, Matrix4x4f>> &shadowCasters);
 
-    const FrameBuffer &getFrameBuffer() const { return *frameBuffer; } // 获取帧缓冲
-
-    void drawMesh(const std::shared_ptr<Mesh> &mesh, std::shared_ptr<Material> material); // 绘制网格
+    // 绘制网格
+    void drawMesh(const std::shared_ptr<Mesh> &mesh, std::shared_ptr<IShader> activeShader);
 
     // 光照相关方法
     void setLight(const Light &light) { this->light = light; }
     Light getLight() const { return light; }
+    
     // 世界视角相关方法
     void setEye(const Vec3f eyePosWS) { this->eyePosWS = eyePosWS; }
     Vec3f getEye() const { return eyePosWS; }
@@ -86,4 +107,8 @@ private:
     std::shared_ptr<IShader> shader; // 当前着色器
     Light light;                     // 光源
     Vec3f eyePosWS;
+    
+    // 阴影贴图相关
+    std::shared_ptr<Texture> shadowMap;
+    std::unique_ptr<FrameBuffer> shadowFrameBuffer;
 };

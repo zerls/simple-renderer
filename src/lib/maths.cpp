@@ -17,6 +17,7 @@ Matrix4x4<T> Matrix4x4<T>::operator*(const Matrix4x4<T>& other) const {
     
     return result;
 }
+
 template<typename T>
 Matrix4x4<T>  Matrix4x4<T>::transposed() const
 {
@@ -33,13 +34,17 @@ Matrix4x4<T>  Matrix4x4<T>::transposed() const
 
 // 变换向量
 template<typename T>
-Vec4<T> Matrix4x4<T>::transform(const Vec4<T> &v) const
+Vec4<T> Matrix4x4<T>::transform(const Vec4<T>& v) const
 {
     return Vec4<T>(
         m00 * v.x + m01 * v.y + m02 * v.z + m03 * v.w,
         m10 * v.x + m11 * v.y + m12 * v.z + m13 * v.w,
         m20 * v.x + m21 * v.y + m22 * v.z + m23 * v.w,
         m30 * v.x + m31 * v.y + m32 * v.z + m33 * v.w);
+}
+template<typename T>
+Vec4<T> Matrix4x4<T>::operator*(const Vec4<T>& v) const {
+   return transform(v);
 }
 
 template<typename T>
@@ -152,6 +157,7 @@ template Matrix4x4<float> Matrix4x4<float>::rotationY(float angle);
 template Matrix4x4<float> Matrix4x4<float>::rotationZ(float angle);
 template Matrix4x4<float> Matrix4x4<float>::perspective(float fovY, float aspect, float zNear, float zFar);
 template Matrix4x4<float> Matrix4x4<float>::lookAt(const Vec3<float>& eye, const Vec3<float>& target, const Vec3<float>& up);
+template Vec4<float> Matrix4x4<float>::transform(const Vec4<float>& vec) const;
 
 
 // 矩阵-向量变换函数

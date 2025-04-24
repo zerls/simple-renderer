@@ -22,7 +22,7 @@ int main()
     camera.setFOV(3.14159f / 4.0f); // 45度视角
 
     // 设置光源
-    Light light(Vec3f(2.0f, 2.0f, 5.0f), Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.2f);
+    Light light(Vec3f(1.0f, 2.0f, 4.0f), Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.2f);
     scene.setLight(light);
 
     //TODO 实现资源池Resource加载(已经读取的资源从缓存中获取)，使用 Scene 类管理 Materials,Textures,Meshs资源
@@ -61,21 +61,27 @@ int main()
                               Matrix4x4f::rotationY(-30.0f * 3.14159f / 180.0f) *
                               Matrix4x4f::scaling(0.7f, 0.7f, 0.7f);
 
-    Matrix4x4f modelMatrix3 = Matrix4x4f::translation(0.0f, 0.0f, 0.0f) *
-                              Matrix4x4f::rotationY(0) *
-                              Matrix4x4f::scaling(0.7f, 0.7f, 0.7f);
+    Matrix4x4f modelMatrix3 = Matrix4x4f::translation(0.0f, 0.0f, -2.0f) *
+                              Matrix4x4f::rotationX(-45) *
+                              Matrix4x4f::scaling(2.0f, 2.0f, 2.0f);
     // 加载模型
-    SceneObject obj1 = scene.loadModel("../assets/sphere.obj", "RedSphere", material1, modelMatrix1);
-    scene.addObject(obj1);
-    SceneObject obj2 = scene.loadModel("../assets/box_sphere.obj", "BlueBox", material2, modelMatrix2);
+    auto mesh = scene.loadMesh("../assets/sphere.obj", "RedSphere");
+    auto mesh2 =  scene.loadMesh("../assets/box_sphere.obj", "BlueBox");
+    auto mesh3 = scene.loadMesh("../assets/plane.obj", "plane");
+
+    auto obj1 =SceneObject("RedSphere",mesh,material3,modelMatrix1,true,false);
+    auto obj2 = SceneObject("BlueBox",mesh2,material1,modelMatrix2);
+    auto obj3 = SceneObject("plane",mesh3,material2,modelMatrix3);
+
     scene.addObject(obj2);
-    SceneObject obj3 = scene.loadModel("../assets/plane.obj", "plane", material3, modelMatrix3);
+    scene.addObject(obj1);
     scene.addObject(obj3);
     // 渲染场景
+    scene.setupShadowMapping(true);
     scene.render(renderer);
 
     // 保存结果
-    saveToPPM("../output/textured_scene.ppm", renderer.getFrameBuffer());
+    saveToPPM("../output/scene.ppm", renderer.getFrameBuffer());
 
     std::cout << "渲染完成!" << std::endl;
 

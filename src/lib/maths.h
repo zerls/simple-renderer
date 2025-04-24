@@ -89,6 +89,7 @@ public:
 
     // 构造函数
     constexpr Vec4() : x(0), y(0), z(0), w(0) {}
+    constexpr Vec4(T t) : x(t), y(t), z(t), w(t) {}
     constexpr Vec4(T x, T y, T z, T w) : x(x), y(y), z(z), w(w) {}
     constexpr Vec4(const Vec3<T> &v, T w) : x(v.x), y(v.y), z(v.z), w(w) {}
 
@@ -174,8 +175,10 @@ struct Matrix4x4
     static Matrix4x4<T> lookAt(const Vec3<T> &eye, const Vec3<T> &target, const Vec3<T> &up); // 视图矩阵
     
     Matrix4x4 operator*(const Matrix4x4 &other) const; // 矩阵乘法
+   
     Matrix4x4 transposed() const; // 矩阵转置
-    Vec4<T> transform(const Vec4<T> &v) const;  // 变换向量
+    Vec4<T> transform(const Vec4<T>& v) const;  // 变换向量
+    Vec4<T> operator*(const Vec4<T>& v) const; // 变换向量
 };
 
 using Matrix4x4f = Matrix4x4<float>;

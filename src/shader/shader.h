@@ -18,6 +18,11 @@ struct ShaderUniforms
     float3 eyePosition;     // 相机位置（世界空间）
     Light light;            // 光源信息
     Surface surface;        // 材质信息
+    
+    // 阴影相关
+    bool useShadowMap = false;
+    std::shared_ptr<Texture> shadowMap; // 阴影贴图
+    Matrix4x4f lightSpaceMatrix;       // 光源空间变换矩阵（视图*投影）
 };
 
 // 顶点着色器输入
@@ -27,7 +32,7 @@ struct VertexAttributes
     float3 normal;   // 顶点法线（模型空间）
     float4 tangent;  // 顶点切线（模型空间），w分量为符号
     Vec2f texCoord;  // 纹理坐标
-    Color color;     // 顶点颜色
+    float4 color;    // 顶点颜色(改为float4)
 };
 
 // 顶点着色器到片元着色器的传递变量
@@ -37,20 +42,28 @@ struct Varyings
     float3 normal;      // 插值后的法线（世界空间）
     float4 tangent;     // 插值后的切线（世界空间），w分量为符号
     Vec2f texCoord;     // 插值后的纹理坐标
-    Color color;        // 插值后的颜色
+    float4 color;       // 插值后的颜色(改为float4)
     float depth;        // 深度值（用于深度测试）
+    
+    // 阴影映射相关
+    float4 positionLightSpace; // 光源空间的位置（用于阴影映射）
 };
 
 // 片元着色器输出
 struct FragmentOutput
 {
-    Color color; // 输出颜色
+    float4 color; // 输出颜色(改为float4)
+    bool discard; // 是否丢弃片元
+    
+    FragmentOutput() : color(0.0f, 0.0f, 0.0f, 1.0f), discard(false) {}
+    explicit FragmentOutput(const float4& color) : color(color), discard(false) {}
 };
 
 // 着色器接口
-class IShader
+class IShader : public IResource
 {
 public:
+    IShader() : IResource(ResourceType::SHADER) {}
     virtual ~IShader() = default;
 
     // 设置统一变量
@@ -89,6 +102,10 @@ public:
     virtual void setUniforms(const ShaderUniforms &uniforms) override;
     virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
     virtual FragmentOutput fragmentShader(const Varyings &input) override;
+    
+protected:
+    // 计算阴影因子
+    float calculateShadow(const float4& positionLightSpace) const;
 };
 
 // 自定义着色器示例：卡通渲染着色器
@@ -125,5 +142,19 @@ public:
 std::shared_ptr<IShader> createTexturedPhongShader(
     std::shared_ptr<Texture> diffuseMap = nullptr,
     std::shared_ptr<Texture> normalMap = nullptr);
+
+// 阴影贴图生成着色器
+class ShadowMapShader : public IShader {
+protected:
+    ShaderUniforms uniforms;
+    
+public:
+    virtual void setUniforms(const ShaderUniforms &uniforms) override;
+    virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
+    virtual FragmentOutput fragmentShader(const Varyings &input) override;
+};
+
+// 创建阴影贴图着色器
+std::shared_ptr<IShader> createShadowMapShader();
 
 #endif

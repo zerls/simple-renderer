@@ -1,6 +1,7 @@
 // 基本光栅化渲染器的实现文件
 #include "renderer.h"
 #include "mesh.h"
+#include "test.h"
 
 // FrameBuffer 实现
 FrameBuffer::FrameBuffer(int width, int height)
@@ -12,22 +13,8 @@ FrameBuffer::FrameBuffer(int width, int height)
     depthBuffer.resize(width * height, 1.0f); // 初始化为最远深度(1.0)
 }
 
-void FrameBuffer::setPixel(int x, int y, const Color &color)
-{
-    // 不进行深度测试的版本
-    if (!isValidCoord(x, y)) return;
-
-    // 计算像素在帧缓冲区中的位置
-    int index = calcIndex(x, y) * 4;
-
-    // 设置RGBA值
-    frameData[index] = color.r;
-    frameData[index + 1] = color.g;
-    frameData[index + 2] = color.b;
-    frameData[index + 3] = color.a;
-}
-
-void FrameBuffer::setPixel(int x, int y, float depth, const Color &color)
+// 修改setPixel方法
+void FrameBuffer::setPixel(int x, int y, float depth, const float4 &color)
 {
     // 带深度测试的版本
     if (!isValidCoord(x, y))
@@ -45,11 +32,44 @@ void FrameBuffer::setPixel(int x, int y, float depth, const Color &color)
 
         // 更新颜色缓冲区
         int colorIndex = index * 4;
-        frameData[colorIndex] = color.r;
-        frameData[colorIndex + 1] = color.g;
-        frameData[colorIndex + 2] = color.b;
-        frameData[colorIndex + 3] = color.a;
+        // 从float4转为颜色值
+        frameData[colorIndex] = static_cast<uint8_t>(std::min(std::max(color.x, 0.0f), 1.0f) * 255);
+        frameData[colorIndex + 1] = static_cast<uint8_t>(std::min(std::max(color.y, 0.0f), 1.0f) * 255);
+        frameData[colorIndex + 2] = static_cast<uint8_t>(std::min(std::max(color.z, 0.0f), 1.0f) * 255);
+        frameData[colorIndex + 3] = static_cast<uint8_t>(std::min(std::max(color.w, 0.0f), 1.0f) * 255);
     }
+}
+void FrameBuffer::setPixel(int x, int y, const float4 &color)
+{
+    // 带深度测试的版本
+    if (!isValidCoord(x, y))
+    {
+        return;
+    }
+
+    int index = calcIndex(x, y);
+
+    // 没有深度测试，在 setPixel 外执行
+
+        // 更新颜色缓冲区
+        int colorIndex = index * 4;
+        // 从float4转为颜色值
+        frameData[colorIndex] = static_cast<uint8_t>(std::min(std::max(color.x, 0.0f), 1.0f) * 255);
+        frameData[colorIndex + 1] = static_cast<uint8_t>(std::min(std::max(color.y, 0.0f), 1.0f) * 255);
+        frameData[colorIndex + 2] = static_cast<uint8_t>(std::min(std::max(color.z, 0.0f), 1.0f) * 255);
+        frameData[colorIndex + 3] = static_cast<uint8_t>(std::min(std::max(color.w, 0.0f), 1.0f) * 255);
+    
+}
+// 添加深度测试方法
+bool FrameBuffer::depthTest(int x, int y, float depth) const
+{
+    if (!isValidCoord(x, y))
+    {
+        return false;
+    }
+
+    int index = calcIndex(x, y);
+    return depth < depthBuffer[index];
 }
 
 float FrameBuffer::getDepth(int x, int y) const
@@ -62,20 +82,20 @@ float FrameBuffer::getDepth(int x, int y) const
     return depthBuffer[calcIndex(x, y)];
 }
 
-void FrameBuffer::clear(const Color &color, float depth)
+void FrameBuffer::clear(const float4 &color, float depth)
 {
     // 使用指定颜色和深度值清除整个缓冲区
 
     // 清除颜色缓冲区
-    if (color.a == 255)
+    if (color.z >= 1.0f)
     { // 如果颜色是完全不透明的，可以使用更快的填充方法
         std::fill(frameData.begin(), frameData.end(), 0);
         for (size_t i = 0; i < frameData.size(); i += 4)
         {
-            frameData[i] = color.r;
-            frameData[i + 1] = color.g;
-            frameData[i + 2] = color.b;
-            frameData[i + 3] = color.a;
+            frameData[i] = color.x;
+            frameData[i + 1] = color.y;
+            frameData[i + 2] = color.z;
+            frameData[i + 3] = color.w;
         }
     }
     else
@@ -93,6 +113,78 @@ void FrameBuffer::clear(const Color &color, float depth)
     std::fill(depthBuffer.begin(), depthBuffer.end(), depth);
 }
 
+// 创建阴影贴图
+std::shared_ptr<Texture> Renderer::createShadowMap(int width, int height)
+{
+    // 创建阴影帧缓冲
+    shadowFrameBuffer = std::make_unique<FrameBuffer>(width, height);
+    shadowFrameBuffer->clear(float4(1.0f, 1.0f, 1.0f, 1.0f), 1.0f);
+    
+    // 创建阴影贴图纹理
+    auto shadowMap = std::make_shared<Texture>();
+    shadowMap->setType(TextureType::SHADOW);
+    
+    // 分配纹理内存
+    shadowMap->width = width;
+    shadowMap->height = height;
+    shadowMap->channels = 1;
+    shadowMap->data.resize(width * height, 0);
+    
+    this->shadowMap = shadowMap;
+    return shadowMap;
+}
+
+// 渲染阴影贴图
+//TODO 阴影渲染 Bias没有实现，ShadowMap使用uint8 存储，精度问题很大
+void Renderer::shadowPass(const std::vector<std::pair<std::shared_ptr<Mesh>, Matrix4x4f>> &shadowCasters)
+{
+    if (!shadowFrameBuffer || !shadowMap) {
+        std::cerr << "无法渲染阴影贴图：阴影缓冲或纹理未初始化" << std::endl;
+        return;
+    }
+    
+    
+    auto originalFrameBuffer = std::move(frameBuffer); // 保存当前渲染状态 ｜ShadowBuffer 与 FrameBuffer 的尺寸不一致
+    
+    
+    frameBuffer = std::move(shadowFrameBuffer); // 切换到阴影帧缓冲
+    
+    // 清除阴影帧缓冲
+    clear(float4(1.0f, 1.0f, 1.0f, 1.0f));
+    
+    // 创建阴影贴图着色器
+    auto shadowShader = createShadowMapShader();
+    
+    // 设置着色器的统一变量
+    ShaderUniforms uniforms;
+    uniforms.viewMatrix = getViewMatrix();;
+    uniforms.projMatrix = getProjMatrix();;
+    uniforms.lightSpaceMatrix = uniforms.projMatrix * uniforms.viewMatrix;
+    
+    // 渲染所有网格到阴影贴图
+    for (const auto& [mesh, _modelMatrix] : shadowCasters) {
+        uniforms.modelMatrix =_modelMatrix;
+        shadowShader->setUniforms(uniforms);
+        for (const auto& triangle : mesh->getTriangles()) {
+            rasterizeTriangle(triangle, shadowShader);
+        }
+    }
+    
+    // 将阴影帧缓冲复制到阴影贴图纹理
+    for (int y = 0; y < frameBuffer->getHeight(); ++y) {
+        for (int x = 0; x < frameBuffer->getWidth(); ++x) {
+            int index = y * frameBuffer->getWidth() + x;
+            float depth = frameBuffer->getDepth(x, y);
+            //TODO 优化存储精度问题 float
+            shadowMap->data[index] = static_cast<uint8_t>(depth * 255.0f);
+        }
+    }
+    saveDepthMap("../output/shadow.ppm", *frameBuffer,0.5,2.0);
+    // 恢复原始渲染状态
+    shadowFrameBuffer = std::move(frameBuffer);
+    frameBuffer = std::move(originalFrameBuffer);
+}
+
 // Renderer 构造函数
 Renderer::Renderer(int width, int height)
     : frameBuffer(std::make_unique<FrameBuffer>(width, height)),
@@ -105,7 +197,7 @@ Renderer::Renderer(int width, int height)
     this->light = Light(Vec3f(0.0f, 0.0f, -1.0f), Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.2f);
 }
 
-void Renderer::clear(const Color &color)
+void Renderer::clear(const float4 &color)
 {
     frameBuffer->clear(color);
 }
@@ -149,11 +241,11 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
         VertexAttributes attributes;
         attributes.position = triangle.vertices[i].position;
         attributes.normal = triangle.vertices[i].normal;
-        attributes.tangent = triangle.vertices[i].tangent; // 新增切线属性
+        attributes.tangent = triangle.vertices[i].tangent;
         attributes.texCoord = triangle.vertices[i].texCoord;
         attributes.color = triangle.vertices[i].color;
 
-        //=================== 运行顶点着色器==================
+        // 运行顶点着色器
         clipPositions[i] = shader->vertexShader(attributes, varyings[i]);
 
         // 屏幕映射
@@ -213,100 +305,84 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
                 float interpolated_w_inverse = lambda0 * w0 + lambda1 * w1 + lambda2 * w2;
                 float w_correct = 1.0f / interpolated_w_inverse;
 
-                Varyings interpolatedVaryings; // 创建插值后的 Varyings 结构
+                // 插值深度
+                float depth = (lambda0 * varyings[0].depth * w0 +
+                               lambda1 * varyings[1].depth * w1 +
+                               lambda2 * varyings[2].depth * w2) *
+                              w_correct;
+                
+                // 提前深度测试 - 如果深度测试失败，跳过片元处理
+                if (!frameBuffer->depthTest(x, y, depth))
+                {
+                    continue;
+                }
+
+                // 进行顶点属性的插值
+                Varyings interpolatedVaryings;
 
                 interpolatedVaryings.position = interpolatePerspectiveCorrect(
                     varyings[0].position, varyings[1].position, varyings[2].position,
-                    lambda, w, w_correct); // 透视校正插值位置
+                    lambda, w, w_correct);
 
                 interpolatedVaryings.normal = interpolatePerspectiveCorrect(
                     varyings[0].normal, varyings[1].normal, varyings[2].normal,
-                    lambda, w, w_correct); // 透视校正插值法线
+                    lambda, w, w_correct);
 
-                interpolatedVaryings.normal = normalize(interpolatedVaryings.normal); // 归一化插值后的法线
+                interpolatedVaryings.normal = normalize(interpolatedVaryings.normal);
 
                 interpolatedVaryings.tangent = interpolatePerspectiveCorrect(
                     varyings[0].tangent, varyings[1].tangent, varyings[2].tangent,
-                    lambda, w, w_correct); // 透视校正插值切线
+                    lambda, w, w_correct);
 
-                interpolatedVaryings.tangent.w = varyings[0].tangent.w; // 切线的w分量(符号)不需要插值，直接使用
+                interpolatedVaryings.tangent.w = varyings[0].tangent.w;
 
                 interpolatedVaryings.texCoord = interpolatePerspectiveCorrect(
                     varyings[0].texCoord, varyings[1].texCoord, varyings[2].texCoord,
-                    lambda, w, w_correct); // 透视校正插值纹理坐标
+                    lambda, w, w_correct);
 
                 // 透视校正插值颜色
-                interpolatedVaryings.color.r = static_cast<uint8_t>((lambda0 * varyings[0].color.r * w0 +
-                                                                     lambda1 * varyings[1].color.r * w1 +
-                                                                     lambda2 * varyings[2].color.r * w2) *
-                                                                    w_correct);
-                interpolatedVaryings.color.g = static_cast<uint8_t>((lambda0 * varyings[0].color.g * w0 +
-                                                                     lambda1 * varyings[1].color.g * w1 +
-                                                                     lambda2 * varyings[2].color.g * w2) *
-                                                                    w_correct);
-                interpolatedVaryings.color.b = static_cast<uint8_t>((lambda0 * varyings[0].color.b * w0 +
-                                                                     lambda1 * varyings[1].color.b * w1 +
-                                                                     lambda2 * varyings[2].color.b * w2) *
-                                                                    w_correct);
-                interpolatedVaryings.color.a = static_cast<uint8_t>((lambda0 * varyings[0].color.a * w0 +
-                                                                     lambda1 * varyings[1].color.a * w1 +
-                                                                     lambda2 * varyings[2].color.a * w2) *
-                                                                    w_correct);
+                interpolatedVaryings.color =interpolatePerspectiveCorrect(
+                    varyings[0].color,varyings[1].color,varyings[2].color,
+                    lambda, w, w_correct);
 
-                // 插值深度
-                interpolatedVaryings.depth = (lambda0 * varyings[0].depth * w0 +
-                                              lambda1 * varyings[1].depth * w1 +
-                                              lambda2 * varyings[2].depth * w2) *
-                                             w_correct;
+                interpolatedVaryings.depth = depth;
+                
+                // 插值光源空间位置（用于阴影映射）
+                if (varyings[0].positionLightSpace.w != 0) {
+                    interpolatedVaryings.positionLightSpace = interpolatePerspectiveCorrect(
+                        varyings[0].positionLightSpace, varyings[1].positionLightSpace, varyings[2].positionLightSpace,
+                        lambda, w, w_correct);
+                }
 
-                //================================运行片段着色器==============================
+                // 运行片段着色器
                 FragmentOutput fragmentOutput = shader->fragmentShader(interpolatedVaryings);
+                
+                // 如果片元被丢弃，跳过后续处理
+                if (fragmentOutput.discard) {
+                    continue;
+                }
 
-                // 设置像素颜色（包含深度测试）
-                frameBuffer->setPixel(x, y, interpolatedVaryings.depth, fragmentOutput.color);
+                // 设置像素颜色
+                frameBuffer->setPixel(x, y, depth, fragmentOutput.color);
             }
         }
     }
 }
 
 // 绘制网格 - 更新版本（使用着色器）
-void Renderer::drawMesh(const std::shared_ptr<Mesh> &mesh, std::shared_ptr<Material> material)
+void Renderer::drawMesh(const std::shared_ptr<Mesh> &mesh, std::shared_ptr<IShader> activeShader)
 {
     if (!mesh) return;
-
-    // 使用提供的材质和着色器
-    std::shared_ptr<IShader> activeShader = material->getShader();
-
     if (!activeShader)
     {
         std::cerr << "错误：材质没有设置着色器，无法渲染网格。" << std::endl;
         return;
     }
 
-    // 设置着色器的统一变量
-    ShaderUniforms uniforms;
-    uniforms.modelMatrix = modelMatrix;
-    uniforms.viewMatrix = viewMatrix;
-    uniforms.projMatrix = projMatrix;
-    uniforms.mvpMatrix = getMVPMatrix();
-    uniforms.eyePosition = eyePosWS;
-    uniforms.light = light;
-    uniforms.surface = material->getSurface();
-
-    activeShader->setUniforms(uniforms);
-
-    // 处理每个面
-    for (const Face &face : mesh->faces)
+    // 使用预计算的三角形进行渲染
+    for (const Triangle &tri : mesh->getTriangles())
     {
-        //TODO 在渲染过程中将多边面转换为三角形  重复操作，需要优化性能，在 Mesh 构造中就应该转换为三角形 
-        // 将面转换为一个或多个三角形
-        std::vector<Triangle> triangles = mesh->triangulate(face);
-
-        // 处理每个三角形
-        for (const Triangle &tri : triangles)
-        {
-            // 直接使用栅格化函数渲染三角形
-            rasterizeTriangle(tri, activeShader);
-        }
+        // 直接使用栅格化函数渲染三角形
+        rasterizeTriangle(tri, activeShader);
     }
 }
