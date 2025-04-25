@@ -310,3 +310,7 @@ int Texture::getChannels() const {
 float4 Texture::sample(float2 uv, const SamplerState &samplerState) const {
     return TextureSampler::sample(this, uv, samplerState);
 }
+
+float4 Texture::sampleLevel(float2 uv, float level, const SamplerState &samplerState) const {
+    return TextureSampler::sampleLevel(this, uv,level, samplerState);
+}

@@ -75,5 +75,5 @@ private:
 };
 
 // 工厂函数
-std::shared_ptr<Texture> loadTexture(const std::string &filename, TextureType type = TextureType::COLOR, TextureFileFormat format = TextureFileFormat::AUTO);
+std::shared_ptr<Texture> loadTexture(const std::string &filename, TextureType type = TextureType::COLOR, TextureFileFormat format = TextureFileFormat::TGA);
 std::shared_ptr<Texture> createTexture(int width, int height, TextureFormat format, TextureAccess access = TextureAccess::READ_ONLY, bool generateMipmaps = false);

@@ -5,6 +5,9 @@ project(SimpleRenderer CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 添加texture子目录
+add_subdirectory(src/lib/texture)
+
 # 添加可执行文件
 set(SRC_LIST 
     main.cpp
@@ -15,12 +18,9 @@ set(SRC_LIST
     src/core/texture.cpp
     src/core/scene.cpp
     src/core/material.cpp
-    # shader/shader.cpp  
-    src/shader/basic_shader.cpp  # ← 手动指定子目录文件
+    src/shader/basic_shader.cpp
     src/shader/phong_shader.cpp  
     src/shader/shadow_map_shader.cpp
-    # src/shader/toon_shader.cpp
-    # src/shader/textured_phong_shader.cpp  
 )
 
 add_executable(SimpleRenderer ${SRC_LIST})
@@ -33,6 +33,9 @@ target_include_directories(SimpleRenderer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/shader
 )
+
+# 链接texture库
+target_link_libraries(SimpleRenderer PRIVATE texture)
 
 # 设置资源目录
 set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../assets")

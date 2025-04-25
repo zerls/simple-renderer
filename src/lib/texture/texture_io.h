@@ -7,6 +7,7 @@
 #include <iostream>
 #include "common.h"
 #include "texture_types.h"
+
 // 前向声明
 enum class TextureFileFormat;
 
@@ -58,8 +59,7 @@ namespace TextureIO {
                                    int width,
                                    int height,
                                    float minDepth = 0.0f,
-                                   float maxDepth = 1.0f
-                                   );
+                                   float maxDepth = 1.0f);
 
     private:
         // 写入TGA文件头
@@ -69,7 +69,22 @@ namespace TextureIO {
         static void writeFooter(std::ofstream& file);
     };
 
-    // 统一的文件加载接口 //NOTE 移除了对多图片格式的支持,简化了实现 TextureFileFormat形参没有移除，只增加了默认值
+    // 定义函数指针类型
+    using LoadTextureFunc = bool (*)(const std::string&, std::vector<uint8_t>&, int&, int&, int&);
+    using SaveTextureFunc = bool (*)(const std::string&, const std::vector<uint8_t>&, int, int, int);
+    using SaveDepthFunc = bool (*)(const std::string&, const std::vector<float>&, int, int, float, float);
+
+    // 格式处理器结构
+    struct FormatHandler {
+        LoadTextureFunc loadFunc;
+        SaveTextureFunc saveFunc;
+        SaveDepthFunc saveDepthFunc;
+    };
+
+    // 获取指定格式的处理器
+    const FormatHandler& getFormatHandler(TextureFileFormat format);
+
+    // 统一的文件加载接口
     bool loadTextureFromFile(const std::string& filename, 
                             std::vector<uint8_t>& data, 
                             int& width, 
@@ -90,8 +105,8 @@ namespace TextureIO {
                         const std::vector<float>& depthData,
                         int width,
                         int height,
-                        float minDepth,
-                        float maxDepth,
+                        float minDepth = 0.0f,
+                        float maxDepth = 1.0f,
                         TextureFileFormat format=TextureFileFormat::TGA);
 
     // 工具函数 - 转换深度数据为灰度
@@ -102,7 +117,6 @@ namespace TextureIO {
         float minDepth = 0.0f,
         float maxDepth = 1.0f,
         bool flipVertically = true);
-
         
     // 工具函数 - Box过滤缩小图像
     std::vector<uint8_t> resizeImageBoxFilter(

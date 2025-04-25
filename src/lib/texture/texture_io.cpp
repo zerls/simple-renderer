@@ -258,43 +258,82 @@ namespace TextureIO
         return saveGrayscaleToFile(filename, imageData, width, height);
     }
 
+    void TgaFormat::writeHeader(std::ofstream &file, int width, int height, int channels)
+    {
+        uint8_t header[18] = {0};
+        header[2] = 2; // 未压缩的RGB/RGBA
+        header[12] = width & 0xFF;
+        header[13] = (width >> 8) & 0xFF;
+        header[14] = height & 0xFF;
+        header[15] = (height >> 8) & 0xFF;
+        header[16] = channels * 8;                // 位深度
+        header[17] = channels == 4 ? 0x28 : 0x20; // 32位时设置alpha位 + 垂直方向标志
+
+        file.write(reinterpret_cast<const char *>(header), 18);
+    }
+
+    void TgaFormat::writeFooter(std::ofstream &file)
+    {
+        const char footer[] = "\0\0\0\0\0\0\0\0TRUEVISION-XFILE.\0";
+        file.write(footer, 26);
+    }
+
+    //----------------------------------------
+    // 函数表实现
+    //----------------------------------------
+    
+    // 格式处理器表
+    static const FormatHandler formatHandlers[] = {
+        // TGA格式处理器
+        { TgaFormat::loadFromFile, TgaFormat::saveToFile, TgaFormat::saveDepthToFile }
+        // 未来可以在这里添加更多格式处理器
+        // { pngLoadFromFile, pngSaveToFile, pngSaveDepthToFile },
+        // { ppmLoadFromFile, ppmSaveToFile, ppmSaveDepthToFile },
+    };
+    
+    // 获取格式处理器
+    const FormatHandler& getFormatHandler(TextureFileFormat format) {
+        // 目前只支持TGA格式，未来可以扩展其他格式
+        // 根据format返回对应的处理器
+        return formatHandlers[0]; // 当前只有TGA格式
+    }
+
     //----------------------------------------
     // 统一接口实现
     //----------------------------------------
 
-    // 统一的文件加载接口
-    bool load(const std::string &filename,
-              std::vector<uint8_t> &data,
-              int &width,
-              int &height,
-              int &channels,
-              TextureFileFormat format)
+    bool loadTextureFromFile(const std::string &filename,
+                            std::vector<uint8_t> &data,
+                            int &width,
+                            int &height,
+                            int &channels,
+                            TextureFileFormat format)
     {
-        return TgaFormat::loadFromFile(filename, data, width, height, channels);
+        const FormatHandler& handler = getFormatHandler(format);
+        return handler.loadFunc(filename, data, width, height, channels);
     }
 
-    // 统一的文件保存接口
-    bool save(const std::string &filename,
-              const std::vector<uint8_t> &pixelData,
-              int width,
-              int height,
-              int channels,
-              TextureFileFormat format)
+    bool saveTextureToFile(const std::string &filename,
+                          const std::vector<uint8_t> &pixelData,
+                          int width,
+                          int height,
+                          int channels,
+                          TextureFileFormat format)
     {
-
-        return TgaFormat::saveToFile(filename, pixelData, width, height, channels);
+        const FormatHandler& handler = getFormatHandler(format);
+        return handler.saveFunc(filename, pixelData, width, height, channels);
     }
 
-    // 统一的深度数据保存接口
     bool saveDepthToFile(const std::string &filename,
-                         const std::vector<float> &depthData,
-                         int width,
-                         int height,
-                         float minDepth,
-                         float maxDepth,
-                         TextureFileFormat format)
+                        const std::vector<float> &depthData,
+                        int width,
+                        int height,
+                        float minDepth,
+                        float maxDepth,
+                        TextureFileFormat format)
     {
-        return TgaFormat::saveDepthToFile(filename, depthData, width, height, minDepth, maxDepth);
+        const FormatHandler& handler = getFormatHandler(format);
+        return handler.saveDepthFunc(filename, depthData, width, height, minDepth, maxDepth);
     }
 
     //----------------------------------------
@@ -435,46 +474,5 @@ namespace TextureIO
         }
 
         return destData;
-    }
-
-    void TgaFormat::writeHeader(std::ofstream &file, int width, int height, int channels)
-    {
-        uint8_t header[18] = {0};
-        header[2] = 2; // 未压缩的RGB/RGBA
-        header[12] = width & 0xFF;
-        header[13] = (width >> 8) & 0xFF;
-        header[14] = height & 0xFF;
-        header[15] = (height >> 8) & 0xFF;
-        header[16] = channels * 8;                // 位深度
-        header[17] = channels == 4 ? 0x28 : 0x20; // 32位时设置alpha位 + 垂直方向标志
-
-        file.write(reinterpret_cast<const char *>(header), 18);
-    }
-
-    void TgaFormat::writeFooter(std::ofstream &file)
-    {
-        const char footer[] = "\0\0\0\0\0\0\0\0TRUEVISION-XFILE.\0";
-        file.write(footer, 26);
-    }
-
-    // Add these implementations to the TextureIO namespace
-    bool TextureIO::loadTextureFromFile(const std::string &filename,
-                                        std::vector<uint8_t> &data,
-                                        int &width,
-                                        int &height,
-                                        int &channels,
-                                        TextureFileFormat format)
-    {
-        return load(filename, data, width, height, channels, format);
-    }
-
-    bool TextureIO::saveTextureToFile(const std::string &filename,
-                                      const std::vector<uint8_t> &pixelData,
-                                      int width,
-                                      int height,
-                                      int channels,
-                                      TextureFileFormat format)
-    {
-            return TgaFormat::saveToFile(filename, pixelData, width, height, channels);
     }
 }

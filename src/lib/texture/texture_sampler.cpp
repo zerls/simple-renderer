@@ -4,6 +4,17 @@
 #include <algorithm>
 #include <cmath>
 
+// 预定义常用采样器状态
+const SamplerState SamplerState::POINT_CLAMP(TextureFilter::POINT, TextureWrapMode::CLAMP, TextureWrapMode::CLAMP);
+const SamplerState SamplerState::POINT_REPEAT(TextureFilter::POINT, TextureWrapMode::REPEAT, TextureWrapMode::REPEAT);
+const SamplerState SamplerState::POINT_MIRROR(TextureFilter::POINT, TextureWrapMode::MIRROR, TextureWrapMode::MIRROR);
+const SamplerState SamplerState::LINEAR_CLAMP(TextureFilter::LINEAR, TextureWrapMode::CLAMP, TextureWrapMode::CLAMP);
+const SamplerState SamplerState::LINEAR_REPEAT(TextureFilter::LINEAR, TextureWrapMode::REPEAT, TextureWrapMode::REPEAT);
+const SamplerState SamplerState::LINEAR_MIRROR(TextureFilter::LINEAR, TextureWrapMode::MIRROR, TextureWrapMode::MIRROR);
+const SamplerState SamplerState::TRILINEAR_CLAMP(TextureFilter::TRILINEAR, TextureWrapMode::CLAMP, TextureWrapMode::CLAMP);
+const SamplerState SamplerState::TRILINEAR_REPEAT(TextureFilter::TRILINEAR, TextureWrapMode::REPEAT, TextureWrapMode::REPEAT);
+const SamplerState SamplerState::TRILINEAR_MIRROR(TextureFilter::TRILINEAR, TextureWrapMode::MIRROR, TextureWrapMode::MIRROR);
+
 
 // 错误检查和采样辅助函数
 inline float4 TextureSampler::getErrorColor() {
