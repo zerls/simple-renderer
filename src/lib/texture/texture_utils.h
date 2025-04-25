@@ -1,133 +1,27 @@
-// texture_utils.h - 纹理格式读写工具类
+// texture_utils.h - 纹理工具函数
 #pragma once
 
 #include <string>
 #include <vector>
-#include <fstream>
-#include <iostream>
-#include "common.h"
+#include "texture_types.h"
 
-// 前向声明
-enum class TextureFileFormat;
-
-// 纹理文件格式工具类
 namespace TextureUtils {
-
-    // TGA文件读写工具
-    class TgaUtils {
-    public:
-        // TGA文件头结构
-        struct TgaHeader {
-            uint8_t idLength = 0;         // ID信息长度
-            uint8_t colorMapType = 0;     // 色彩映射表类型
-            uint8_t imageType = 2;        // 图像类型 (2=未压缩RGB, 3=未压缩灰度)
-            uint16_t colorMapStart = 0;   // 色彩映射起始索引
-            uint16_t colorMapLength = 0;  // 色彩映射长度
-            uint8_t colorMapDepth = 0;    // 色彩映射深度
-            uint16_t xOrigin = 0;         // X起点
-            uint16_t yOrigin = 0;         // Y起点
-            uint16_t width = 0;           // 宽度
-            uint16_t height = 0;          // 高度
-            uint8_t bitsPerPixel = 24;    // 像素位数
-            uint8_t imageDescriptor = 0;  // 图像描述符 (bit 5: 垂直翻转)
-        };
-
-        // 从TGA文件加载数据
-        static bool loadFromFile(const std::string& filename, 
-                                std::vector<uint8_t>& data, 
-                                int& width, 
-                                int& height, 
-                                int& channels);
-
-        // 保存RGB/RGBA数据到TGA文件
-        static bool saveToFile(const std::string& filename, 
-                              const std::vector<uint8_t>& rgbData, 
-                              int width, 
-                              int height, 
-                              int channels);
-
-        // 保存灰度数据到TGA文件
-        static bool saveGrayscaleToFile(const std::string& filename, 
-                                       const std::vector<uint8_t>& grayData, 
-                                       int width, 
-                                       int height);
-
-        // 保存深度数据到TGA文件 (灰度或假彩色)
-        static bool saveDepthToFile(const std::string& filename,
-                                   const std::vector<float>& depthData,
-                                   int width,
-                                   int height,
-                                   float minDepth = 0.0f,
-                                   float maxDepth = 1.0f,
-                                   bool pseudocolor = false);
-
-    private:
-        // 写入TGA文件头
-        static void writeHeader(std::ofstream& file, int width, int height, int channels);
-        
-        // 写入TGA文件尾
-        static void writeFooter(std::ofstream& file);
-    };
-
-    // PPM文件读写工具
-    class PpmUtils {
-    public:
-        // 从PPM文件加载数据
-        static bool loadFromFile(const std::string& filename, 
-                                std::vector<uint8_t>& data, 
-                                int& width, 
-                                int& height,
-                                int& channels);
-
-        // 保存RGB数据到PPM文件(P6格式)
-        static bool saveToFile(const std::string& filename, 
-                              const std::vector<uint8_t>& rgbData, 
-                              int width, 
-                              int height);
-
-        // 保存灰度数据到PGM文件(P5格式)
-        static bool saveGrayscaleToFile(const std::string& filename, 
-                                       const std::vector<uint8_t>& grayData, 
-                                       int width, 
-                                       int height);
-                                       
-        // 保存深度数据到PPM/PGM文件 (灰度或假彩色)
-        static bool saveDepthToFile(const std::string& filename,
-                                   const std::vector<float>& depthData,
-                                   int width,
-                                   int height,
-                                   float minDepth = 0.0f,
-                                   float maxDepth = 1.0f,
-                                   bool pseudocolor = false);
-    };
-
-    // 统一的文件加载接口
-    bool loadTextureFromFile(const std::string& filename, 
-                            std::vector<uint8_t>& data, 
-                            int& width, 
-                            int& height, 
-                            int& channels,
-                            TextureFileFormat format);
-
-    // 统一的文件保存接口
-    bool saveTextureToFile(const std::string& filename, 
-                          const std::vector<uint8_t>& pixelData, 
-                          int width, 
-                          int height, 
-                          int channels,
-                          TextureFileFormat format);
-
-    // 统一的深度数据保存接口
-    bool saveDepthToFile(const std::string& filename,
-                        const std::vector<float>& depthData,
-                        int width,
-                        int height,
-                        float minDepth,
-                        float maxDepth,
-                        bool pseudocolor,
-                        TextureFileFormat format);
-
-    // 工具函数 - 转换深度数据为灰度
+    // 文件格式相关函数
+    std::string getFileExtension(TextureFileFormat format);
+    TextureFileFormat getFormatFromFilename(const std::string& filename);
+    
+    // 数据转换函数
+    float4 convertToFloat4(const void* pixelData, TextureFormat format);
+    void convertFromFloat4(void* pixelData, const float4& color, TextureFormat format);
+    
+    // Mipmap生成函数
+    bool generateNextMipLevel(const MipmapLevel& source, MipmapLevel& destination, TextureFormat format);
+    
+    // 获取格式信息
+    int getChannelsFromFormat(TextureFormat format);
+    int getBytesPerPixelFromFormat(TextureFormat format);
+    
+    // 图像处理工具函数
     std::vector<uint8_t> convertDepthToGrayscale(
         const std::vector<float>& depthData,
         int width, 
@@ -135,17 +29,7 @@ namespace TextureUtils {
         float minDepth = 0.0f,
         float maxDepth = 1.0f,
         bool flipVertically = true);
-
-    // 工具函数 - 转换深度数据为假彩色(RGB)
-    std::vector<uint8_t> convertDepthToPseudocolor(
-        const std::vector<float>& depthData,
-        int width, 
-        int height,
-        float minDepth = 0.0f,
-        float maxDepth = 1.0f,
-        bool flipVertically = true);
         
-    // 工具函数 - Box过滤缩小图像
     std::vector<uint8_t> resizeImageBoxFilter(
         const std::vector<uint8_t>& srcData,
         int srcWidth,
@@ -153,4 +37,8 @@ namespace TextureUtils {
         int channels,
         int destWidth,
         int destHeight);
-};
+    
+    // 辅助常量
+    constexpr float INV_255 = 1.0f / 255.0f;
+    constexpr float INV_65535 = 1.0f / 65535.0f;
+}
