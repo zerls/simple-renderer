@@ -69,7 +69,7 @@ size_t Texture::getPixelIndex(int x, int y, int width) const {
 }
 
 // 保存到文件（统一接口）
-bool Texture::saveToFile(const std::string& filename, TextureFileFormat format, int level) const {
+bool Texture::saveToFile(const std::string& filename, int level, TextureFileFormat format) const {
     if (mipLevels.empty() || level < 0 || level >= mipLevels.size()) {
         std::cerr << "没有有效的纹理数据可保存" << std::endl;
         return false;
@@ -96,17 +96,17 @@ bool Texture::saveToFile(const std::string& filename, TextureFileFormat format, 
 }
 
 // 保存深度数据到文件
-bool Texture::saveDepthToFile(const std::string& filename, TextureFileFormat format, 
-                             float minDepth, float maxDepth) const {
+bool Texture::saveDepthToFile(const std::string& filename,
+                             float minDepth, float maxDepth, TextureFileFormat format ) const {
     if (mipLevels.empty() ) {
         std::cerr << "没有有效的深度纹理数据可保存" << std::endl;
         return false;
     }
     
     // 如果是自动检测格式，根据文件扩展名确定格式
-    if (format == TextureFileFormat::AUTO) {
-        format = TextureUtils::getFormatFromFilename(filename);
-    }
+    // if (format == TextureFileFormat::AUTO) {
+    //     format = TextureUtils::getFormatFromFilename(filename);
+    // }
     
     const MipmapLevel& baseLevel = mipLevels[0];
     
@@ -123,7 +123,7 @@ bool Texture::saveDepthToFile(const std::string& filename, TextureFileFormat for
     
     // 使用工具类保存深度数据
     if (!TextureIO::saveDepthToFile(
-        filename, depthData, baseLevel.width, baseLevel.height, minDepth, maxDepth, format)) {
+        filename, depthData, baseLevel.width, baseLevel.height, minDepth, maxDepth,format)) {
         std::cerr << "保存深度数据到文件失败: " << filename << std::endl;
         return false;
     }

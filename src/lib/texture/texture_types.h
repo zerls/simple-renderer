@@ -39,7 +39,7 @@ enum class TextureFormat
 enum class TextureFileFormat
 {
     TGA, // TGA文件格式
-    PPM, // PPM/PGM文件格式
+    // PPM, // PPM/PGM文件格式 //移除了PPM/PGM格式的支持
     AUTO // 自动检测（根据文件扩展名）
 };
 

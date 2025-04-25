@@ -270,35 +270,7 @@ namespace TextureIO
               int &channels,
               TextureFileFormat format)
     {
-        // 根据格式选择相应的加载函数
-        switch (format)
-        {
-        case TextureFileFormat::TGA:
-            return TgaFormat::loadFromFile(filename, data, width, height, channels);
-        case TextureFileFormat::PPM:
-            return PpmFormat::loadFromFile(filename, data, width, height, channels);
-        case TextureFileFormat::AUTO:
-            // 根据文件扩展名自动选择
-            std::string extension = std::filesystem::path(filename).extension().string();
-            std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-
-            if (extension == ".tga")
-            {
-                return TgaFormat::loadFromFile(filename, data, width, height, channels);
-            }
-            else if (extension == ".ppm" || extension == ".pgm")
-            {
-                return PpmFormat::loadFromFile(filename, data, width, height, channels);
-            }
-            else
-            {
-                std::cerr << "不支持的文件格式: " << extension << std::endl;
-                return false;
-            }
-        }
-
-        std::cerr << "未知的文件格式枚举值: " << static_cast<int>(format) << std::endl;
-        return false;
+        return TgaFormat::loadFromFile(filename, data, width, height, channels);
     }
 
     // 统一的文件保存接口
@@ -309,115 +281,8 @@ namespace TextureIO
               int channels,
               TextureFileFormat format)
     {
-        // 根据格式选择相应的保存函数
-        switch (format)
-        {
-        case TextureFileFormat::TGA:
-            return TgaFormat::saveToFile(filename, pixelData, width, height, channels);
-        case TextureFileFormat::PPM:
-            if (channels == 1)
-            {
-                return PpmFormat::saveGrayscaleToFile(filename, pixelData, width, height);
-            }
-            else if (channels == 3 || channels == 4)
-            {
-                // 如果是4通道，需要转换为3通道（PPM不支持alpha）
-                if (channels == 4)
-                {
-                    std::vector<uint8_t> rgbData(width * height * 3);
-                    for (int i = 0; i < width * height; ++i)
-                    {
-                        rgbData[i * 3] = pixelData[i * 4];
-                        rgbData[i * 3 + 1] = pixelData[i * 4 + 1];
-                        rgbData[i * 3 + 2] = pixelData[i * 4 + 2];
-                    }
-                    return PpmFormat::saveToFile(filename, rgbData, width, height);
-                }
-                else
-                {
-                    return PpmFormat::saveToFile(filename, pixelData, width, height);
-                }
-            }
-            else
-            {
-                std::cerr << "PPM格式不支持 " << channels << " 通道" << std::endl;
-                return false;
-            }
-        case TextureFileFormat::AUTO:
-            // 根据文件扩展名自动选择
-            std::string extension = std::filesystem::path(filename).extension().string();
-            std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
 
-            if (extension == ".tga")
-            {
-                return TgaFormat::saveToFile(filename, pixelData, width, height, channels);
-            }
-            else if (extension == ".ppm")
-            {
-                if (channels == 3 || channels == 4)
-                {
-                    // 如果是4通道，需要转换为3通道（PPM不支持alpha）
-                    if (channels == 4)
-                    {
-                        std::vector<uint8_t> rgbData(width * height * 3);
-                        for (int i = 0; i < width * height; ++i)
-                        {
-                            rgbData[i * 3] = pixelData[i * 4];
-                            rgbData[i * 3 + 1] = pixelData[i * 4 + 1];
-                            rgbData[i * 3 + 2] = pixelData[i * 4 + 2];
-                        }
-                        return PpmFormat::saveToFile(filename, rgbData, width, height);
-                    }
-                    else
-                    {
-                        return PpmFormat::saveToFile(filename, pixelData, width, height);
-                    }
-                }
-                else
-                {
-                    std::cerr << "PPM格式不支持 " << channels << " 通道" << std::endl;
-                    return false;
-                }
-            }
-            else if (extension == ".pgm")
-            {
-                if (channels == 1)
-                {
-                    return PpmFormat::saveGrayscaleToFile(filename, pixelData, width, height);
-                }
-                else
-                {
-                    // 将多通道数据转换为灰度
-                    std::vector<uint8_t> grayData(width * height);
-                    for (int i = 0; i < width * height; ++i)
-                    {
-                        if (channels == 3 || channels == 4)
-                        {
-                            // 使用加权平均计算灰度值
-                            grayData[i] = static_cast<uint8_t>(
-                                0.299f * pixelData[i * channels] +     // R
-                                0.587f * pixelData[i * channels + 1] + // G
-                                0.114f * pixelData[i * channels + 2]   // B
-                            );
-                        }
-                        else
-                        {
-                            // 对于2通道，只使用第一个通道
-                            grayData[i] = pixelData[i * channels];
-                        }
-                    }
-                    return PpmFormat::saveGrayscaleToFile(filename, grayData, width, height);
-                }
-            }
-            else
-            {
-                std::cerr << "不支持的文件格式: " << extension << std::endl;
-                return false;
-            }
-        }
-
-        std::cerr << "未知的文件格式枚举值: " << static_cast<int>(format) << std::endl;
-        return false;
+        return TgaFormat::saveToFile(filename, pixelData, width, height, channels);
     }
 
     // 统一的深度数据保存接口
@@ -429,35 +294,7 @@ namespace TextureIO
                          float maxDepth,
                          TextureFileFormat format)
     {
-        // 根据格式选择相应的保存函数
-        switch (format)
-        {
-        case TextureFileFormat::TGA:
-            return TgaFormat::saveDepthToFile(filename, depthData, width, height, minDepth, maxDepth);
-        case TextureFileFormat::PPM:
-            return PpmFormat::saveDepthToFile(filename, depthData, width, height, minDepth, maxDepth);
-        case TextureFileFormat::AUTO:
-            // 根据文件扩展名自动选择
-            std::string extension = std::filesystem::path(filename).extension().string();
-            std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-
-            if (extension == ".tga")
-            {
-                return TgaFormat::saveDepthToFile(filename, depthData, width, height, minDepth, maxDepth);
-            }
-            else if (extension == ".ppm" || extension == ".pgm")
-            {
-                return PpmFormat::saveDepthToFile(filename, depthData, width, height, minDepth, maxDepth);
-            }
-            else
-            {
-                std::cerr << "不支持的文件格式: " << extension << std::endl;
-                return false;
-            }
-        }
-
-        std::cerr << "未知的文件格式枚举值: " << static_cast<int>(format) << std::endl;
-        return false;
+        return TgaFormat::saveDepthToFile(filename, depthData, width, height, minDepth, maxDepth);
     }
 
     //----------------------------------------
@@ -620,215 +457,24 @@ namespace TextureIO
         file.write(footer, 26);
     }
 
-    //----------------------------------------
-    // PPM文件格式工具实现
-    //----------------------------------------
-
-    bool PpmFormat::loadFromFile(const std::string &filename,
-                                 std::vector<uint8_t> &data,
-                                 int &width,
-                                 int &height,
-                                 int &channels)
+    // Add these implementations to the TextureIO namespace
+    bool TextureIO::loadTextureFromFile(const std::string &filename,
+                                        std::vector<uint8_t> &data,
+                                        int &width,
+                                        int &height,
+                                        int &channels,
+                                        TextureFileFormat format)
     {
-        std::ifstream file(filename, std::ios::binary);
-        if (!file)
-        {
-            std::cerr << "无法打开PPM/PGM文件：" << filename << std::endl;
-            return false;
-        }
-
-        // 读取PPM/PGM头部
-        std::string format;
-        file >> format;
-
-        // 跳过注释
-        char c;
-        file.get(c);
-        while (c == '#' || std::isspace(c))
-        {
-            if (c == '#')
-            {
-                while (c != '\n' && !file.eof())
-                {
-                    file.get(c);
-                }
-            }
-            if (!file.eof())
-            {
-                file.get(c);
-            }
-        }
-        file.unget();
-
-        // 读取尺寸
-        file >> width >> height;
-
-        // 最大值
-        int maxVal;
-        file >> maxVal;
-
-        // 跳过一个换行符
-        file.get(c);
-
-        // 确定通道数和二进制格式
-        if (format == "P5")
-        {
-            // 灰度图(PGM)
-            channels = 1;
-        }
-        else if (format == "P6")
-        {
-            // 彩色图(PPM)
-            channels = 3;
-        }
-        else
-        {
-            std::cerr << "不支持的PPM/PGM格式: " << format << std::endl;
-            return false;
-        }
-
-        // 准备数据数组
-        size_t dataSize = width * height * channels;
-        data.resize(dataSize);
-
-        // 读取像素数据
-        file.read(reinterpret_cast<char *>(data.data()), dataSize);
-
-        // 检查是否成功读取所有数据
-        if (file.gcount() != dataSize)
-        {
-            std::cerr << "PPM/PGM文件数据不完整: " << filename << std::endl;
-            return false;
-        }
-
-        std::cout << "已加载PPM/PGM纹理: " << filename << " (" << width << "x" << height
-                  << ", " << channels << "通道, 最大值:" << maxVal << ")" << std::endl;
-
-        return true;
+        return load(filename, data, width, height, channels, format);
     }
 
-    bool PpmFormat::saveToFile(const std::string &filename,
-                               const std::vector<uint8_t> &rgbData,
-                               int width,
-                               int height)
+    bool TextureIO::saveTextureToFile(const std::string &filename,
+                                      const std::vector<uint8_t> &pixelData,
+                                      int width,
+                                      int height,
+                                      int channels,
+                                      TextureFileFormat format)
     {
-        if (rgbData.empty() || width <= 0 || height <= 0 || rgbData.size() < width * height * 3)
-        {
-            std::cerr << "无效的RGB数据或尺寸" << std::endl;
-            return false;
-        }
-
-        std::ofstream file(filename, std::ios::binary);
-        if (!file)
-        {
-            std::cerr << "无法创建PPM文件：" << filename << std::endl;
-            return false;
-        }
-
-        // 写入PPM头部
-        file << "P6\n";
-        file << width << " " << height << "\n";
-        file << "255\n";
-
-        // 写入像素数据
-        file.write(reinterpret_cast<const char *>(rgbData.data()), rgbData.size());
-
-        std::cout << "成功保存到PPM文件：" << filename << " (" << width << "x" << height << ")" << std::endl;
-
-        return true;
-    }
-
-    bool PpmFormat::saveGrayscaleToFile(const std::string &filename,
-                                        const std::vector<uint8_t> &grayData,
-                                        int width,
-                                        int height)
-    {
-        if (grayData.empty() || width <= 0 || height <= 0 || grayData.size() < width * height)
-        {
-            std::cerr << "无效的灰度数据或尺寸" << std::endl;
-            return false;
-        }
-
-        std::ofstream file(filename, std::ios::binary);
-        if (!file)
-        {
-            std::cerr << "无法创建PGM文件：" << filename << std::endl;
-            return false;
-        }
-
-        // 写入PGM头部（P5为灰度图格式）
-        file << "P5\n";
-        file << width << " " << height << "\n";
-        file << "255\n";
-
-        // 写入像素数据
-        file.write(reinterpret_cast<const char *>(grayData.data()), grayData.size());
-
-        std::cout << "成功保存灰度数据到PGM文件：" << filename << " (" << width << "x" << height << ")" << std::endl;
-
-        return true;
-    }
-
-    bool PpmFormat::saveDepthToFile(const std::string &filename,
-                                    const std::vector<float> &depthData,
-                                    int width,
-                                    int height,
-                                    float minDepth,
-                                    float maxDepth)
-    {
-        // 转换深度数据
-        std::vector<uint8_t> imageData;
-        // 使用灰度图
-        imageData = convertDepthToGrayscale(depthData, width, height, minDepth, maxDepth, false);
-        return saveGrayscaleToFile(filename, imageData, width, height);
-    }
-}
-
-// Add these implementations to the TextureIO namespace
-bool TextureIO::loadTextureFromFile(const std::string &filename,
-                             std::vector<uint8_t> &data,
-                             int &width,
-                             int &height,
-                             int &channels,
-                             TextureFileFormat format) {
-    return load(filename, data, width, height, channels, format);
-}
-
-bool TextureIO::saveTextureToFile(const std::string &filename,
-                           const std::vector<uint8_t> &pixelData,
-                           int width,
-                           int height,
-                           int channels,
-                           TextureFileFormat format) {
-    // 根据格式选择相应的保存函数
-    switch (format) {
-    case TextureFileFormat::TGA:
-        return TgaFormat::saveToFile(filename, pixelData, width, height, channels);
-    case TextureFileFormat::PPM:
-        if (channels == 1) {
-            return PpmFormat::saveGrayscaleToFile(filename, pixelData, width, height);
-        } else {
-            return PpmFormat::saveToFile(filename, pixelData, width, height);
-        }
-    case TextureFileFormat::AUTO:
-        // 根据文件扩展名自动选择
-        std::string extension = std::filesystem::path(filename).extension().string();
-        std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-
-        if (extension == ".tga") {
             return TgaFormat::saveToFile(filename, pixelData, width, height, channels);
-        } else if (extension == ".ppm" || extension == ".pgm") {
-            if (channels == 1) {
-                return PpmFormat::saveGrayscaleToFile(filename, pixelData, width, height);
-            } else {
-                return PpmFormat::saveToFile(filename, pixelData, width, height);
-            }
-        } else {
-            std::cerr << "不支持的文件格式: " << extension << std::endl;
-            return false;
-        }
     }
-
-    std::cerr << "未知的文件格式枚举值: " << static_cast<int>(format) << std::endl;
-    return false;
 }

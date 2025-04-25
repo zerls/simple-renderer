@@ -57,9 +57,9 @@ public:
     bool hasMipmaps() const { return mipLevels.size() > 1; }
 
     // 保存到文件
-    bool saveToFile(const std::string &filename, TextureFileFormat format = TextureFileFormat::AUTO, int level = 0) const;
-    bool saveDepthToFile(const std::string &filename, TextureFileFormat format = TextureFileFormat::AUTO,
-                         float minDepth = 0.0f, float maxDepth = 1.0f) const;
+    bool saveToFile(const std::string &filename, int level = 0, TextureFileFormat format = TextureFileFormat::TGA) const;
+    bool saveDepthToFile(const std::string &filename,
+                         float minDepth = 0.0f, float maxDepth = 1.0f, TextureFileFormat format = TextureFileFormat::TGA) const;
 
     // 允许TextureSampler访问私有成员
     friend class TextureSampler;

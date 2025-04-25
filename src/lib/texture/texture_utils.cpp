@@ -14,8 +14,8 @@ std::string getFileExtension(TextureFileFormat format) {
     switch (format) {
         case TextureFileFormat::TGA:
             return ".tga";
-        case TextureFileFormat::PPM:
-            return ".ppm";
+        // case TextureFileFormat::PPM:
+        //     return ".ppm";
         default:
             return ".tga"; // 默认使用TGA
     }
@@ -23,19 +23,19 @@ std::string getFileExtension(TextureFileFormat format) {
 
 // 根据文件扩展名判断文件格式
 TextureFileFormat getFormatFromFilename(const std::string& filename) {
-    std::string extension;
-    size_t pos = filename.find_last_of('.');
+    // std::string extension;
+    // size_t pos = filename.find_last_of('.');
     
-    if (pos != std::string::npos) {
-        extension = filename.substr(pos);
-        std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+    // if (pos != std::string::npos) {
+    //     extension = filename.substr(pos);
+    //     std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
         
-        if (extension == ".tga") {
-            return TextureFileFormat::TGA;
-        } else if (extension == ".ppm" || extension == ".pgm") {
-            return TextureFileFormat::PPM;
-        }
-    }
+    //     if (extension == ".tga") {
+    //         return TextureFileFormat::TGA;
+    //     } else if (extension == ".ppm" || extension == ".pgm") {
+    //         return TextureFileFormat::PPM;
+    //     }
+    // }
     
     // 默认使用TGA
     return TextureFileFormat::TGA;

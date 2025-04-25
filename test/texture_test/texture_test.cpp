@@ -176,7 +176,7 @@ bool testSaveDepthToFile() {
     
     // 测试普通保存
     for (const auto& [filename, format] : testFormats) {
-        bool success = depthTexture->saveDepthToFile(filename, format);
+        bool success = depthTexture->saveDepthToFile(filename);
         if (success) {
             std::cout << "成功保存深度图到: " << filename << std::endl;
         } else {
