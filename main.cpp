@@ -50,7 +50,7 @@ int main()
     Light light(Vec3f(1.0f, 2.0f, 4.0f), Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.2f);
     scene.setLight(light);
 
-    //TODO 实现资源池Resource加载(已经读取的资源从缓存中获取)，使用 Scene 类管理 Materials,Textures,Meshs资源
+    
     // 创建材质 - 红色材质带漫反射贴图
     auto material1 = scene.createMaterialWithTextures(
         "RedMaterial",

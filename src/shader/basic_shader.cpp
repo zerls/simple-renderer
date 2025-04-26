@@ -1,11 +1,11 @@
 #include "shader.h"
-
+//无光照UnLit shader
 void BasicShader::setUniforms(const ShaderUniforms &uniforms)
 {
     this->uniforms = uniforms;
 }
 
-float3 BasicShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
+float4 BasicShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
 {
     // 将顶点变换到世界空间（用于片元着色器）
     output.position = transformNoDiv(uniforms.modelMatrix, attributes.position);
@@ -16,10 +16,10 @@ float3 BasicShader::vertexShader(const VertexAttributes &attributes, Varyings &o
     output.color = attributes.color;
 
     // 变换到裁剪空间，然后到NDC空间
-    float3 clipPos =transform(uniforms.mvpMatrix ,attributes.position);
+    float4 clipPos = uniforms.mvpMatrix * float4(attributes.position,1.0f);
 
     // 将z保存用于深度测试
-    output.depth = clipPos.z;
+    output.depth = clipPos.z/clipPos.w;
 
     return clipPos;
 }

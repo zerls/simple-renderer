@@ -5,7 +5,7 @@ void ToonShader::setUniforms(const ShaderUniforms &uniforms)
     this->uniforms = uniforms;
 }
 
-float3 ToonShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
+float4 ToonShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
 {
     // 将顶点变换到世界空间（用于片元着色器）
     output.position = transformNoDiv(uniforms.modelMatrix, attributes.position);
@@ -16,10 +16,10 @@ float3 ToonShader::vertexShader(const VertexAttributes &attributes, Varyings &ou
     output.color = attributes.color;
 
     // 变换到裁剪空间，然后到NDC空间
-    float3 clipPos = transform(uniforms.mvpMatrix, attributes.position);
+    float4 clipPos = uniforms.mvpMatrix * float4( attributes.position,1.0f);
 
     // 将z保存用于深度测试
-    output.depth = clipPos.z;
+    output.depth = clipPos.z/clipPos.w;
 
     return clipPos;
 }
@@ -57,21 +57,15 @@ FragmentOutput ToonShader::fragmentShader(const Varyings &input)
     }
 
     // 计算基础颜色（不包括边缘）
-    float baseR = diffuse * (input.color.r / 255.0f);
-    float baseG = diffuse * (input.color.g / 255.0f);
-    float baseB = diffuse * (input.color.b / 255.0f);
+    float baseR = diffuse * (input.color.x);
+    float baseG = diffuse * (input.color.y);
+    float baseB = diffuse * (input.color.z);
 
+    float4 baseColor = input.color * diffuse;
     // 应用边缘因子
-    float r = baseR * edge;
-    float g = baseG * edge;
-    float b = baseB * edge;
-
-    // 转换为颜色输出
-    output.color = Color(
-        static_cast<uint8_t>(r * 255.0f),
-        static_cast<uint8_t>(g * 255.0f),
-        static_cast<uint8_t>(b * 255.0f),
-        input.color.a);
+    baseColor = baseColor * edge;
+    // 计算最终颜色
+    output.color = float4(baseColor.xyz(), 1.0f);
     return output;
 }
 

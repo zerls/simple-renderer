@@ -38,24 +38,3 @@ target_link_libraries(SimpleRenderer PRIVATE texture)
 # 设置资源目录
 set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../assets")
 set(OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../output")
-
-# # 创建输出目录
-# file(MAKE_DIRECTORY ${OUTPUT_DIR})
-
-# # 复制资源文件到构建目录以便于运行时访问
-# file(GLOB OBJ_FILES "${ASSETS_DIR}/*.obj")
-# file(GLOB TGA_FILES "${ASSETS_DIR}/*.tga")
-
-# foreach(OBJ_FILE ${OBJ_FILES})
-#     file(COPY ${OBJ_FILE} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-# endforeach()
-
-# foreach(TGA_FILE ${TGA_FILES})
-#     file(COPY ${TGA_FILE} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-# endforeach()
-
-# # 修改输出路径
-# set_target_properties(SimpleRenderer
-#     PROPERTIES
-#     RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_DIR}
-# )

@@ -192,7 +192,6 @@ std::string Scene::createMaterialWithTextures(
         }
     }
 
-    // TODO 暂时移除对贴图的支持，后续需要增加 uniforms 贴图引用表 结构
     std::string shaderGUID;
 
     auto shader = createPhongShader();

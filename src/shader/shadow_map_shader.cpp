@@ -8,14 +8,13 @@ void ShadowMapShader::setUniforms(const ShaderUniforms &uniforms)
     this->uniforms = uniforms;
 }
 
-float3 ShadowMapShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
+float4 ShadowMapShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
 {
     // 只需要将顶点变换到光源空间
-    // float4 positionClip = uniforms.lightSpaceMatrix * uniforms.modelMatrix *float4(attributes.position,1.0f);
-    float3 positionClip = transform(uniforms.lightSpaceMatrix * uniforms.modelMatrix, attributes.position);
+    float4 positionClip = uniforms.lightSpaceMatrix * uniforms.modelMatrix *float4(attributes.position,1.0f);
 
     // 保存深度值
-    output.depth = positionClip.z;
+    output.depth = positionClip.z/positionClip.w;
     
     return positionClip;
 }

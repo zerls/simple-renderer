@@ -79,7 +79,7 @@ public:
     // 顶点着色器
     // 输入：单个顶点属性
     // 输出：变换后的屏幕空间位置
-    virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) = 0;
+    virtual float4 vertexShader(const VertexAttributes &attributes, Varyings &output) = 0;
 
     // 片元着色器
     // 输入：插值后的Varyings
@@ -107,7 +107,7 @@ protected:
 
 public:
     virtual void setUniforms(const ShaderUniforms &uniforms) override;
-    virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
+    virtual float4 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
     virtual FragmentOutput fragmentShader(const Varyings &input) override;
 };
 
@@ -119,7 +119,7 @@ class PhongShader : public IShader
 
 public:
     virtual void setUniforms(const ShaderUniforms &uniforms) override;
-    virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
+    virtual float4 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
     virtual FragmentOutput fragmentShader(const Varyings &input) override;
 
 protected:
@@ -136,7 +136,7 @@ protected:
 
 public:
     virtual void setUniforms(const ShaderUniforms &uniforms) override;
-    virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
+    virtual float4 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
     virtual FragmentOutput fragmentShader(const Varyings &input) override;
 };
 
@@ -171,7 +171,7 @@ protected:
 
 public:
     virtual void setUniforms(const ShaderUniforms &uniforms) override;
-    virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
+    virtual float4 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
     virtual FragmentOutput fragmentShader(const Varyings &input) override;
 };
 

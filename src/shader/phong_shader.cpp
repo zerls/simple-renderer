@@ -42,11 +42,10 @@ void PhongShader::setUniforms(const ShaderUniforms &uniforms)
     this->uniforms = uniforms;
 }
 
-float3 PhongShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
+float4 PhongShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
 {
     // 变换顶点位置到裁剪空间
-    // float4 positionClip = uniforms.mvpMatrix * float4(attributes.position,1.0f);
-    float3 positionClip = transform( uniforms.mvpMatrix , attributes.position);
+    float4 positionClip = uniforms.mvpMatrix * float4(attributes.position,1.0f);
     
     // 变换顶点位置到世界空间（用于光照计算）
     output.position = transform(uniforms.modelMatrix, attributes.position);
@@ -63,12 +62,12 @@ float3 PhongShader::vertexShader(const VertexAttributes &attributes, Varyings &o
     output.color = attributes.color;
     
     // 存储深度用于深度测试
-    output.depth = positionClip.z;
+    output.depth = positionClip.z/positionClip.w;
     
     // 如果启用了阴影映射，计算顶点在光源空间的位置
     if (uniforms.useShadowMap) {
-        // output.positionLightSpace = uniforms.lightSpaceMatrix * Vec4f(output.position.x, output.position.y, output.position.z, 1.0f);
-        output.positionLightSpace = uniforms.lightSpaceMatrix.transform(Vec4f(output.position,1.0f));
+        output.positionLightSpace = uniforms.lightSpaceMatrix * Vec4f(output.position.x, output.position.y, output.position.z, 1.0f);
+        // output.positionLightSpace = uniforms.lightSpaceMatrix.transform(Vec4f(output.position,1.0f));
     }
     
     return positionClip;

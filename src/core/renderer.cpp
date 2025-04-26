@@ -127,7 +127,7 @@ std::shared_ptr<Texture> Renderer::createShadowMap(int width, int height)
 }
 
 // 渲染阴影贴图
-// TODO 阴影渲染 Bias没有实现，ShadowMap使用uint8 存储，精度问题很大
+// TODO 阴影渲染 Bias没有实现
 void Renderer::shadowPass(const std::vector<std::pair<std::shared_ptr<Mesh>, Matrix4x4f>> &shadowCasters)
 {
     if (!shadowFrameBuffer || !shadowMap)
@@ -172,9 +172,9 @@ void Renderer::shadowPass(const std::vector<std::pair<std::shared_ptr<Mesh>, Mat
         {
             int index = y * frameBuffer->getWidth() + x;
             float depth = frameBuffer->getDepth(x, y);
-            // TODO 优化存储精度问题 float
+            // 将深度值写入阴影贴图纹理
             shadowMap->write(x, y, Vec4f(depth));
-            // shadowMap->data[index] = static_cast<uint8_t>(depth * 255.0f);
+            
         }
     }
     // TODO 增加让灰度对比更明显的函数
@@ -202,13 +202,6 @@ void Renderer::clear(const Vec4f &color)
     frameBuffer->clear(color);
 }
 
-// 顶点变换 - MVP变换和屏幕映射
-Vec3f Renderer::transformVertex(const Vec3f &position, const Matrix4x4f &mvpMatrix)
-{
-    // 应用MVP矩阵变换
-    return transform(mvpMatrix, position);
-}
-
 // 屏幕映射函数
 Vec3f Renderer::screenMapping(const Vec3f &ndcPos)
 {
@@ -231,7 +224,7 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
     }
 
     // 对每个顶点运行顶点着色器
-    std::array<Vec3f, 3> clipPositions;
+    std::array<Vec4f, 3> clipPositions;
     std::array<Vec3f, 3> screenPositions;
     std::array<Varyings, 3> varyings;
 
@@ -248,14 +241,11 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
         // 运行顶点着色器
         clipPositions[i] = shader->vertexShader(attributes, varyings[i]);
 
-        //TODO  透视除法
-        // Vec3f ndcPos =  Vec3f(clipPositions[i].x/ clipPositions[i].w,
-        //                       clipPositions[i].y/ clipPositions[i].w,
-        //                       clipPositions[i].z/ clipPositions[i].w);
-                              
-                              Vec3f ndcPos =  Vec3f(clipPositions[i].x,
-                                clipPositions[i].y,
-                                clipPositions[i].z);       
+        //  透视除法
+        Vec3f ndcPos =  Vec3f(clipPositions[i].x/ clipPositions[i].w,
+                              clipPositions[i].y/ clipPositions[i].w,
+                              clipPositions[i].z/ clipPositions[i].w);
+                
                             
 
         // 屏幕映射
@@ -274,12 +264,10 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
     maxX = std::min(frameBuffer->getWidth() - 1, maxX);
     maxY = std::min(frameBuffer->getHeight() - 1, maxY);
 
-
-    
     Vec2f v0(screenPositions[0].x, screenPositions[0].y);
     Vec2f v1(screenPositions[1].x, screenPositions[1].y);
     Vec2f v2(screenPositions[2].x, screenPositions[2].y);
-// 叉积面积
+    // 叉积面积
     float area = cross(v1 - v0, v2 - v0);
         // 如果面积为0，则三角形是一条线或一个点
     if (std::abs(area) < 1e-8)
@@ -288,12 +276,9 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
     }
 
     // 透视校正插值需要的深度倒数
-    // float w0 = 1.0f / clipPositions[0].w;
-    // float w1 = 1.0f / clipPositions[1].w;
-    // float w2 = 1.0f / clipPositions[2].w;
-    float w0 = 1.0f / clipPositions[0].z;
-    float w1 = 1.0f / clipPositions[1].z;
-    float w2 = 1.0f / clipPositions[2].z;
+    float w0 = 1.0f / clipPositions[0].w;
+    float w1 = 1.0f / clipPositions[1].w;
+    float w2 = 1.0f / clipPositions[2].w;
     Vec3f w = Vec3f(w0, w1, w2);
 
     // 遍历包围盒中的每个像素
@@ -312,9 +297,6 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
             float lambda2 = 1.0f - lambda0 - lambda1;
 
             // 计算重心坐标
-            // float lambda0 = ((x1 - x) * (y2 - y) - (y1 - y) * (x2 - x)) / area;
-            // float lambda1 = ((x2 - x) * (y0 - y) - (y2 - y) * (x0 - x)) / area;
-            // float lambda2 = 1.0f - lambda0 - lambda1;
             Vec3f lambda = Vec3f(lambda0, lambda1, lambda2);
 
             // 检查点是否在三角形内
@@ -358,7 +340,7 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
                 interpolatedVaryings.texCoord = interpolatePerspectiveCorrect(
                     varyings[0].texCoord, varyings[1].texCoord, varyings[2].texCoord,
                     lambda, w, w_correct);
-                // interpolatedVaryings.texCoord =varyings[0].texCoord;
+              
                 // 透视校正插值颜色
                 interpolatedVaryings.color = interpolatePerspectiveCorrect(
                     varyings[0].color, varyings[1].color, varyings[2].color,

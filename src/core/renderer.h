@@ -77,7 +77,6 @@ public:
     Matrix4x4f getMVPMatrix() const { return projMatrix * viewMatrix * modelMatrix; }
 
     // 顶点变换和屏幕映射
-    Vec3f transformVertex(const Vec3f &position, const Matrix4x4f &mvpMatrix);
     Vec3f screenMapping(const Vec3f &clipPos);
 
     // 获取帧缓冲
