@@ -7,7 +7,7 @@
 #include <iostream>
 #include <cmath>
 
-namespace TextureUtils {
+namespace texture_utils {
 
 // 获取纹理文件格式对应的文件扩展名
 std::string getFileExtension(TextureFileFormat format) {
@@ -214,7 +214,7 @@ bool generateNextMipLevel(const MipmapLevel& source, MipmapLevel& destination, T
     destination.height = nextHeight;
     
     // 使用Box过滤方法生成下一级mipmap数据
-    destination.data = std::make_shared<std::vector<uint8_t>>(TextureIO::resizeImageBoxFilter(
+    destination.data = std::make_shared<std::vector<uint8_t>>(texture_io::resizeImageBoxFilter(
         *source.data, source.width, source.height, channels, nextWidth, nextHeight));
     
     return !destination.data->empty();

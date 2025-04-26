@@ -11,11 +11,9 @@ add_subdirectory(src/lib/texture)
 # 添加可执行文件
 set(SRC_LIST 
     main.cpp
-    test.cpp
     src/lib/maths.cpp
     src/core/renderer.cpp
     src/core/mesh.cpp
-    src/core/texture.cpp
     src/core/scene.cpp
     src/core/material.cpp
     src/shader/basic_shader.cpp

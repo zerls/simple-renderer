@@ -67,6 +67,7 @@ Matrix4x4<T> Matrix4x4<T>::scaling(T x, T y, T z) {
 
 template<typename T>
 Matrix4x4<T> Matrix4x4<T>::rotationX(T angle) {
+    angle =  angle/180.0f * M_PI; // 将角度转换为弧度
     T c = std::cos(angle);
     T s = std::sin(angle);
 
@@ -80,6 +81,7 @@ Matrix4x4<T> Matrix4x4<T>::rotationX(T angle) {
 
 template<typename T>
 Matrix4x4<T> Matrix4x4<T>::rotationY(T angle) {
+    angle =  angle/180.0f * M_PI; // 将角度转换为弧度
     T c = std::cos(angle);
     T s = std::sin(angle);
 
@@ -93,6 +95,7 @@ Matrix4x4<T> Matrix4x4<T>::rotationY(T angle) {
 
 template<typename T>
 Matrix4x4<T> Matrix4x4<T>::rotationZ(T angle) {
+    angle =  angle/180.0f * M_PI; // 将角度转换为弧度
     T c = std::cos(angle);
     T s = std::sin(angle);
 
@@ -158,7 +161,7 @@ template Matrix4x4<float> Matrix4x4<float>::rotationZ(float angle);
 template Matrix4x4<float> Matrix4x4<float>::perspective(float fovY, float aspect, float zNear, float zFar);
 template Matrix4x4<float> Matrix4x4<float>::lookAt(const Vec3<float>& eye, const Vec3<float>& target, const Vec3<float>& up);
 template Vec4<float> Matrix4x4<float>::transform(const Vec4<float>& vec) const;
-
+template Vec4<float> Matrix4x4<float>::operator*(const Vec4<float>& v) const;
 
 // 矩阵-向量变换函数
 Vec3f transform(const Matrix4x4f& matrix, const Vec3f& vector, float w) {

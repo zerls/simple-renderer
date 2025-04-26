@@ -117,6 +117,7 @@ public:
         T invScalar = static_cast<T>(1) / scalar;
         return Vec4<T>(x * invScalar, y * invScalar, z * invScalar, w * invScalar);
     }
+    Vec3<T> xyz() const { return Vec3<T>(x, y, z); } // 返回 Vec3<T> 形式的 x, y, z 分量
 };
 
 // 全局向量操作函数
@@ -135,6 +136,10 @@ inline T dot(const Vec4<T> &a, const Vec4<T> &b) { return a.dot(b); }
 template <typename T>
 inline Vec3<T> cross(const Vec3<T> &a, const Vec3<T> &b) { return a.cross(b); }
 
+template <typename T>
+inline float cross(const Vec2<T> & a, const Vec2<T>& b) {
+    return a.x * b.y - a.y * b.x;
+}
 // 类型别名
 using Vec2f = Vec2<float>;
 using Vec3f = Vec3<float>;

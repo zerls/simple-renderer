@@ -4,6 +4,8 @@
 #include "maths.h"
 #include "shader.h"
 #include "material.h"
+#include "texture.h"      // 使用新的纹理库
+#include "texture_sampler.h" // 使用新的纹理采样器
 
 // 前向声明
 class Mesh;

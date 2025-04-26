@@ -1,9 +1,9 @@
-// 定义着色器接口和基本着色器类型
-// 在 shader 编写中，参考 HLSL 的命名方案，VecXf ->floatX，数据结构体为Uniforms，Attributes，Varyings
-#ifndef SHADER_H
-#define SHADER_H
+// 假设这是 shader.h 文件
+#pragma once
 
+#include <memory>
 #include "maths.h"
+#include "texture.h" // 使用新的纹理库
 #include "common.h"
 #include "texture.h"
 #include <memory>
@@ -18,12 +18,16 @@ struct ShaderUniforms
     float3 eyePosition;     // 相机位置（世界空间）
     Light light;            // 光源信息
     Surface surface;        // 材质信息
-    
+    std::unordered_map<std::string, std::shared_ptr<Texture>> textures;
     // 阴影相关
     bool useShadowMap = false;
     std::shared_ptr<Texture> shadowMap; // 阴影贴图
-    Matrix4x4f lightSpaceMatrix;       // 光源空间变换矩阵（视图*投影）
+    Matrix4x4f lightSpaceMatrix;        // 光源空间变换矩阵（视图*投影）
 };
+
+static constexpr const char* _ShadowMap ="shadowmap";
+static constexpr const char* _ColorMap ="colormap";
+static constexpr const char* _NormalMap = "normalmap";
 
 // 顶点着色器输入
 struct VertexAttributes
@@ -38,13 +42,13 @@ struct VertexAttributes
 // 顶点着色器到片元着色器的传递变量
 struct Varyings
 {
-    float3 position;    // 插值后的位置（世界空间）
-    float3 normal;      // 插值后的法线（世界空间）
-    float4 tangent;     // 插值后的切线（世界空间），w分量为符号
-    Vec2f texCoord;     // 插值后的纹理坐标
-    float4 color;       // 插值后的颜色(改为float4)
-    float depth;        // 深度值（用于深度测试）
-    
+    float3 position; // 插值后的位置（世界空间）
+    float3 normal;   // 插值后的法线（世界空间）
+    float4 tangent;  // 插值后的切线（世界空间），w分量为符号
+    Vec2f texCoord;  // 插值后的纹理坐标
+    float4 color;    // 插值后的颜色(改为float4)
+    float depth;     // 深度值（用于深度测试）
+
     // 阴影映射相关
     float4 positionLightSpace; // 光源空间的位置（用于阴影映射）
 };
@@ -54,14 +58,17 @@ struct FragmentOutput
 {
     float4 color; // 输出颜色(改为float4)
     bool discard; // 是否丢弃片元
-    
+
     FragmentOutput() : color(0.0f, 0.0f, 0.0f, 1.0f), discard(false) {}
-    explicit FragmentOutput(const float4& color) : color(color), discard(false) {}
+    explicit FragmentOutput(const float4 &color) : color(color), discard(false) {}
 };
 
 // 着色器接口
 class IShader : public IResource
 {
+protected:
+    ShaderUniforms uniforms;
+
 public:
     IShader() : IResource(ResourceType::SHADER) {}
     virtual ~IShader() = default;
@@ -78,6 +85,18 @@ public:
     // 输入：插值后的Varyings
     // 输出：片元颜色
     virtual FragmentOutput fragmentShader(const Varyings &input) = 0;
+
+    // 核心方法：安全地采样纹理
+    float4 sampleTexture(const std::string &name,const SamplerState &samplerstate, const float2 &uv) const
+    {
+        auto it = uniforms.textures.find(name);
+        if (it != uniforms.textures.end() && it->second)
+        {
+            return it->second->sample(uv, samplerstate);
+        }
+        // 纹理不存在或为空，返回错误颜色（紫色）
+        return float4(0);
+    }
 };
 
 // 基础着色器实现（无光照）
@@ -95,17 +114,17 @@ public:
 // 带Phong光照模型的着色器
 class PhongShader : public IShader
 {
-protected:
-    ShaderUniforms uniforms;
+// protected:
+//     ShaderUniforms uniforms;
 
 public:
     virtual void setUniforms(const ShaderUniforms &uniforms) override;
     virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
     virtual FragmentOutput fragmentShader(const Varyings &input) override;
-    
+
 protected:
     // 计算阴影因子
-    float calculateShadow(const float4& positionLightSpace) const;
+    float calculateShadow(const float4 &positionLightSpace) const;
 };
 
 // 自定义着色器示例：卡通渲染着色器
@@ -126,15 +145,16 @@ std::shared_ptr<IShader> createBasicShader();
 std::shared_ptr<IShader> createPhongShader();
 std::shared_ptr<IShader> createToonShader();
 
-class TexturedPhongShader : public PhongShader {
+class TexturedPhongShader : public PhongShader
+{
 private:
     std::shared_ptr<Texture> diffuseMap = nullptr;
     std::shared_ptr<Texture> normalMap = nullptr;
-    
+
 public:
     void setDiffuseMap(std::shared_ptr<Texture> texture) { diffuseMap = texture; }
     void setNormalMap(std::shared_ptr<Texture> texture) { normalMap = texture; }
-    
+
     virtual FragmentOutput fragmentShader(const Varyings &input) override;
 };
 
@@ -144,10 +164,11 @@ std::shared_ptr<IShader> createTexturedPhongShader(
     std::shared_ptr<Texture> normalMap = nullptr);
 
 // 阴影贴图生成着色器
-class ShadowMapShader : public IShader {
+class ShadowMapShader : public IShader
+{
 protected:
     ShaderUniforms uniforms;
-    
+
 public:
     virtual void setUniforms(const ShaderUniforms &uniforms) override;
     virtual float3 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
@@ -156,5 +177,3 @@ public:
 
 // 创建阴影贴图着色器
 std::shared_ptr<IShader> createShadowMapShader();
-
-#endif

@@ -12,7 +12,7 @@
 enum class TextureFileFormat;
 
 // 纹理文件格式工具类
-namespace TextureIO {
+namespace texture_io {
 
     // TGA文件读写工具
     class TgaFormat {

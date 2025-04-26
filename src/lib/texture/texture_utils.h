@@ -5,7 +5,7 @@
 #include <vector>
 #include "texture_types.h"
 
-namespace TextureUtils {
+namespace texture_utils {
     // 文件格式相关函数
     std::string getFileExtension(TextureFileFormat format);
     TextureFileFormat getFormatFromFilename(const std::string& filename);

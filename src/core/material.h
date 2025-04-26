@@ -1,11 +1,12 @@
-// material.h的修改
+// 假设这是 material.h 文件
 #pragma once
 
-#include <memory>
 #include <string>
 #include <unordered_map>
-#include "common.h"
+#include <memory>
+#include "maths.h"
 #include "IResource.h"
+#include "texture_types.h" // 使用新的纹理类型定义
 
 // 材质类 - 管理表面属性和纹理
 class Material : public IResource {

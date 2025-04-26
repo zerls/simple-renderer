@@ -12,6 +12,8 @@
 #include "renderer.h"
 #include "material.h"
 #include "IResource.h"
+#include "texture.h"      // 使用新的纹理库
+#include "texture_types.h" // 使用新的纹理类型定义
 
 // 场景对象，包含网格和材质
 // 场景对象，包含网格和材质
@@ -110,7 +112,7 @@ class Scene {
         std::string loadMesh(const std::string& objFile, const std::string& name);
         
         // 加载纹理
-        std::string loadTexture(const std::string& filename, TextureType type = TextureType::DIFFUSE);
+        std::string loadTexture(const std::string& filename, TextureType type = TextureType::COLOR);
         
         // 创建材质
         std::string createMaterial(const std::string& name, const Surface& surface);

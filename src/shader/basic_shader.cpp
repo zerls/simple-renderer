@@ -16,7 +16,7 @@ float3 BasicShader::vertexShader(const VertexAttributes &attributes, Varyings &o
     output.color = attributes.color;
 
     // 变换到裁剪空间，然后到NDC空间
-    float3 clipPos = transform(uniforms.mvpMatrix, attributes.position);
+    float3 clipPos =transform(uniforms.mvpMatrix ,attributes.position);
 
     // 将z保存用于深度测试
     output.depth = clipPos.z;

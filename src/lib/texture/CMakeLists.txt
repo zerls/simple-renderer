@@ -11,4 +11,5 @@ target_include_directories(texture PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../../core
     ${CMAKE_CURRENT_SOURCE_DIR}/../../lib
+    # ${CMAKE_CURRENT_SOURCE_DIR}/../../
 )

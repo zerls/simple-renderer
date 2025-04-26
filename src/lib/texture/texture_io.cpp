@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <cmath>
 
-namespace TextureIO
+namespace texture_io
 {
 
     //----------------------------------------
@@ -85,7 +85,9 @@ namespace TextureIO
         }
 
         // 检查是否需要垂直翻转 (bit 5 of imageDescriptor控制垂直翻转)
-        bool flipVertically = !(header.imageDescriptor & 0x20);
+        // TGA文件的Y轴是向下的，所以我们需要翻转图像
+        // 0x20表示垂直翻转，0x00表示不翻转
+        bool flipVertically = (header.imageDescriptor & 0x20);
         if (flipVertically)
         {
             // 垂直翻转图像
@@ -385,7 +387,7 @@ namespace TextureIO
                 normalizedDepth = std::clamp(normalizedDepth, 0.0f, 1.0f);
 
                 // 转换为灰度值
-                grayData[destIndex] = static_cast<uint8_t>(normalizedDepth * 255.0f);
+                grayData[destIndex] = static_cast<uint32_t>(normalizedDepth * 255.0f);
             }
         }
 

@@ -12,6 +12,7 @@
 #include "texture_sampler.h"
 #include "texture_utils.h"
 
+
 // 纹理类
 class Texture : public IResource
 {
@@ -52,6 +53,7 @@ public:
     int getBytesPerPixel() const;
     TextureFormat getFormat() const { return format; }
     TextureType getType() const { return textureType; }
+    void setType(TextureType type) { textureType = type; }
     TextureAccess getAccess() const { return access; }
     int getMipmapCount() const { return static_cast<int>(mipLevels.size()); }
     bool hasMipmaps() const { return mipLevels.size() > 1; }
@@ -73,7 +75,8 @@ private:
     // 获取直接像素索引
     size_t getPixelIndex(int x, int y, int width) const;
 };
-
+namespace textures{
 // 工厂函数
-std::shared_ptr<Texture> loadTexture(const std::string &filename, TextureType type = TextureType::COLOR, TextureFileFormat format = TextureFileFormat::TGA);
+std::shared_ptr<Texture> loadTexture(const std::string &filename, TextureFileFormat format = TextureFileFormat::TGA);
 std::shared_ptr<Texture> createTexture(int width, int height, TextureFormat format, TextureAccess access = TextureAccess::READ_ONLY, bool generateMipmaps = false);
+}
