@@ -4,6 +4,18 @@
 #include "texture_io.h" // 替换 test.h
 #include <omp.h>
 
+// 定义 MSAA 采样点数量和 epsilon 常量
+constexpr int MSAA_SAMPLES = 4; // 4x MSAA
+constexpr float EPSILON = 1e-6f;
+
+// MSAA 采样点偏移
+const Vec2f MSAA_OFFSETS[MSAA_SAMPLES] = {
+    {0.25f, 0.25f},
+    {0.75f, 0.25f},
+    {0.25f, 0.75f},
+    {0.75f, 0.75f}
+};
+
 // FrameBuffer 实现
 FrameBuffer::FrameBuffer(int width, int height)
     : width(width), height(height)
@@ -12,12 +24,37 @@ FrameBuffer::FrameBuffer(int width, int height)
     frameData.resize(width * height * 4, 0);
     // 初始化深度缓冲区，每个像素一个浮点数
     depthBuffer.resize(width * height, 1.0f); // 初始化为最远深度(1.0)
+    
+
+    // 初始化MSAA缓冲区
+    msaaEnabled = false;
+    msaaColorBuffer.resize(width * height * MSAA_SAMPLES * 4, 0);
+    msaaDepthBuffer.resize(width * height * MSAA_SAMPLES, 1.0f);
+    
+
 }
 
-// 修改setPixel方法
+// 启用或禁用 MSAA
+void FrameBuffer::enableMSAA(bool enable)
+{
+    if (msaaEnabled != enable) {
+        msaaEnabled = enable;
+        
+        if (msaaEnabled) {
+            // 分配MSAA缓冲区
+            msaaColorBuffer.resize(width * height * MSAA_SAMPLES * 4, 0);
+            msaaDepthBuffer.resize(width * height * MSAA_SAMPLES, 1.0f);
+        } else {
+            // 释放MSAA缓冲区
+            std::vector<uint8_t>().swap(msaaColorBuffer);
+            std::vector<float>().swap(msaaDepthBuffer);
+        }
+    }
+}
+
+// 设置像素颜色（带深度值）
 void FrameBuffer::setPixel(int x, int y, float depth, const Vec4f &color)
 {
-    // 带深度测试的版本
     if (!isValidCoord(x, y))
     {
         return;
@@ -25,24 +62,89 @@ void FrameBuffer::setPixel(int x, int y, float depth, const Vec4f &color)
 
     int index = calcIndex(x, y);
 
-    // 深度测试：只有当新深度值小于当前深度值时（更靠近摄像机）才更新
-    if (depth < depthBuffer[index])
-    {
-        // 更新深度缓冲区
-        depthBuffer[index] = depth;
+    // 更新深度缓冲区
+    depthBuffer[index] = depth;
 
-        // 更新颜色缓冲区
-        int colorIndex = index * 4;
-        // 从Vec4f转为颜色值
-        frameData[colorIndex] = static_cast<uint8_t>(std::min(std::max(color.x, 0.0f), 1.0f) * 255);
-        frameData[colorIndex + 1] = static_cast<uint8_t>(std::min(std::max(color.y, 0.0f), 1.0f) * 255);
-        frameData[colorIndex + 2] = static_cast<uint8_t>(std::min(std::max(color.z, 0.0f), 1.0f) * 255);
-        frameData[colorIndex + 3] = static_cast<uint8_t>(std::min(std::max(color.w, 0.0f), 1.0f) * 255);
+    // 更新颜色缓冲区
+    int colorIndex = index * 4;
+    // 从Vec4f转为颜色值
+    frameData[colorIndex] = static_cast<uint8_t>(std::min(std::max(color.x, 0.0f), 1.0f) * 255);
+    frameData[colorIndex + 1] = static_cast<uint8_t>(std::min(std::max(color.y, 0.0f), 1.0f) * 255);
+    frameData[colorIndex + 2] = static_cast<uint8_t>(std::min(std::max(color.z, 0.0f), 1.0f) * 255);
+    frameData[colorIndex + 3] = static_cast<uint8_t>(std::min(std::max(color.w, 0.0f), 1.0f) * 255);
+}
+
+// 设置 MSAA 采样点
+void FrameBuffer::setMSAASample(int x, int y, int sampleIndex, float depth, const Vec4f &color)
+{
+    if (!isValidCoord(x, y) || sampleIndex >= MSAA_SAMPLES)
+    {
+        return;
+    }
+
+    int pixelIndex = calcIndex(x, y);
+    int sampleOffset = pixelIndex * MSAA_SAMPLES + sampleIndex;
+    
+    // 更新 MSAA 深度缓冲区
+    msaaDepthBuffer[sampleOffset] = depth;
+    
+    // 更新 MSAA 颜色缓冲区
+    int colorIndex = sampleOffset * 4;
+    msaaColorBuffer[colorIndex] = static_cast<uint8_t>(std::min(std::max(color.x, 0.0f), 1.0f) * 255);
+    msaaColorBuffer[colorIndex + 1] = static_cast<uint8_t>(std::min(std::max(color.y, 0.0f), 1.0f) * 255);
+    msaaColorBuffer[colorIndex + 2] = static_cast<uint8_t>(std::min(std::max(color.z, 0.0f), 1.0f) * 255);
+    msaaColorBuffer[colorIndex + 3] = static_cast<uint8_t>(std::min(std::max(color.w, 0.0f), 1.0f) * 255);
+}
+
+// 解析 MSAA 缓冲区到普通缓冲区
+void FrameBuffer::resolveMSAA()
+{
+    if (!msaaEnabled)
+        return;
+        
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            int pixelIndex = calcIndex(x, y);
+            int pixelColorIndex = pixelIndex * 4;
+            
+            // 对所有采样点进行平均
+            Vec4f avgColor(0.0f, 0.0f, 0.0f, 0.0f);
+            float minDepth = 1.0f;
+            
+            for (int s = 0; s < MSAA_SAMPLES; ++s)
+            {
+                int sampleOffset = pixelIndex * MSAA_SAMPLES + s;
+                int sampleColorIndex = sampleOffset * 4;
+                
+                // 累加颜色
+                avgColor.x += msaaColorBuffer[sampleColorIndex] / 255.0f;
+                avgColor.y += msaaColorBuffer[sampleColorIndex + 1] / 255.0f;
+                avgColor.z += msaaColorBuffer[sampleColorIndex + 2] / 255.0f;
+                avgColor.w += msaaColorBuffer[sampleColorIndex + 3] / 255.0f;
+                
+                // 找到最小深度值
+                minDepth = std::min(minDepth, msaaDepthBuffer[sampleOffset]);
+            }
+            
+            // 计算平均颜色
+            avgColor = avgColor * (1.0f / MSAA_SAMPLES);
+            
+            // 更新普通缓冲区
+            frameData[pixelColorIndex] = static_cast<uint8_t>(std::min(std::max(avgColor.x, 0.0f), 1.0f) * 255);
+            frameData[pixelColorIndex + 1] = static_cast<uint8_t>(std::min(std::max(avgColor.y, 0.0f), 1.0f) * 255);
+            frameData[pixelColorIndex + 2] = static_cast<uint8_t>(std::min(std::max(avgColor.z, 0.0f), 1.0f) * 255);
+            frameData[pixelColorIndex + 3] = static_cast<uint8_t>(std::min(std::max(avgColor.w, 0.0f), 1.0f) * 255);
+            
+            // 更新深度缓冲区
+            depthBuffer[pixelIndex] = minDepth;
+        }
     }
 }
+
 void FrameBuffer::setPixel(int x, int y, const Vec4f &color)
 {
-
     if (!isValidCoord(x, y))
     {
         return;
@@ -60,6 +162,7 @@ void FrameBuffer::setPixel(int x, int y, const Vec4f &color)
     frameData[colorIndex + 2] = static_cast<uint8_t>(std::min(std::max(color.z, 0.0f), 1.0f) * 255);
     frameData[colorIndex + 3] = static_cast<uint8_t>(std::min(std::max(color.w, 0.0f), 1.0f) * 255);
 }
+
 // 添加深度测试方法
 bool FrameBuffer::depthTest(int x, int y, float depth) const
 {
@@ -70,6 +173,19 @@ bool FrameBuffer::depthTest(int x, int y, float depth) const
 
     int index = calcIndex(x, y);
     return depth < depthBuffer[index];
+}
+
+// MSAA 深度测试
+bool FrameBuffer::depthTestMSAA(int x, int y, int sampleIndex, float depth) const
+{
+    if (!isValidCoord(x, y) || sampleIndex >= MSAA_SAMPLES)
+    {
+        return false;
+    }
+
+    int pixelIndex = calcIndex(x, y);
+    int sampleOffset = pixelIndex * MSAA_SAMPLES + sampleIndex;
+    return depth < msaaDepthBuffer[sampleOffset];
 }
 
 float FrameBuffer::getDepth(int x, int y) const
@@ -111,6 +227,24 @@ void FrameBuffer::clear(const Vec4f &color, float depth)
 
     // 清除深度缓冲区
     std::fill(depthBuffer.begin(), depthBuffer.end(), depth);
+    
+    // 清除 MSAA 缓冲区
+    if (msaaEnabled)
+    {
+        std::fill(msaaDepthBuffer.begin(), msaaDepthBuffer.end(), depth);
+        
+        if (color.w >= 1.0f)
+        {
+            std::fill(msaaColorBuffer.begin(), msaaColorBuffer.end(), 0);
+            for (size_t i = 0; i < msaaColorBuffer.size(); i += 4)
+            {
+                msaaColorBuffer[i] = static_cast<uint8_t>(color.x * 255);
+                msaaColorBuffer[i + 1] = static_cast<uint8_t>(color.y * 255);
+                msaaColorBuffer[i + 2] = static_cast<uint8_t>(color.z * 255);
+                msaaColorBuffer[i + 3] = static_cast<uint8_t>(color.w * 255);
+            }
+        }
+    }
 }
 
 // 创建阴影贴图
@@ -136,8 +270,9 @@ void Renderer::shadowPass(const std::vector<std::pair<std::shared_ptr<Mesh>, Mat
         return;
     }
 
+    auto originalmsaaEnabled=msaaEnabled;
     auto originalFrameBuffer = std::move(frameBuffer); // 保存当前渲染状态 ｜ShadowBuffer 与 FrameBuffer 的尺寸不一致
-
+    msaaEnabled =false; // 禁用 MSAA
     frameBuffer = std::move(shadowFrameBuffer); // 切换到阴影帧缓冲
 
     // 清除阴影帧缓冲
@@ -180,6 +315,7 @@ void Renderer::shadowPass(const std::vector<std::pair<std::shared_ptr<Mesh>, Mat
     shadowMap->saveDepthToFile("../output/shadow.tga", 0.0f, 1.0f);
     // saveDepthMap("../output/shadow.ppm", *frameBuffer,0.5,2.0);
     // 恢复原始渲染状态
+    msaaEnabled =originalmsaaEnabled;
     shadowFrameBuffer = std::move(frameBuffer);
     frameBuffer = std::move(originalFrameBuffer);
 }
@@ -190,7 +326,8 @@ Renderer::Renderer(int width, int height)
       modelMatrix(Matrix4x4f::identity()),
       viewMatrix(Matrix4x4f::identity()),
       projMatrix(Matrix4x4f::identity()),
-      shader(nullptr) // 初始化着色器为空
+      shader(nullptr), // 初始化着色器为空
+      msaaEnabled(false) // 默认禁用 MSAA
 {
     // 初始化默认光源
     this->light = Light(Vec3f(0.0f, 0.0f, -1.0f), Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.2f);
@@ -199,9 +336,33 @@ Renderer::Renderer(int width, int height)
     omp_set_num_threads(4);
 }
 
+// 启用或禁用 MSAA
+void Renderer::enableMSAA(bool enable)
+{
+    msaaEnabled = enable;
+    frameBuffer->enableMSAA(enable);
+}
+
 void Renderer::clear(const Vec4f &color)
 {
     frameBuffer->clear(color);
+}
+
+// 计算重心坐标 - 优化版本
+Vec3f computeBarycentric2D(float x, float y, const std::array<Vec3f, 3> &v)
+{
+    float c1 = (x*(v[1].y - v[2].y) + (v[2].x - v[1].x)*y + v[1].x*v[2].y - v[2].x*v[1].y) / 
+               (v[0].x*(v[1].y - v[2].y) + (v[2].x - v[1].x)*v[0].y + v[1].x*v[2].y - v[2].x*v[1].y);
+    float c2 = (x*(v[2].y - v[0].y) + (v[0].x - v[2].x)*y + v[2].x*v[0].y - v[0].x*v[2].y) / 
+               (v[1].x*(v[2].y - v[0].y) + (v[0].x - v[2].x)*v[1].y + v[2].x*v[0].y - v[0].x*v[2].y);
+    return Vec3f(c1, c2, 1.0f - c1 - c2);
+}
+
+// 判断点是否在三角形内
+bool isInsideTriangle(float alpha, float beta, float gamma)
+{
+    // 使用 epsilon 缓解精度问题
+    return alpha > -EPSILON && beta > -EPSILON && gamma > -EPSILON;
 }
 
 // Calculate bounding box for triangle rasterization
@@ -244,34 +405,29 @@ Vec3f Renderer::screenMapping(const Vec3f &ndcPos)
     return Vec3f(screenX, screenY, ndcPos.z);
 }
 
-// Helper function to interpolate varyings with perspective correction
 /**
- * @brief Performs perspective-correct interpolation of vertex attributes for a fragment
+ * @brief 透视校正插值函数
  *
- * This function interpolates various vertex attributes (position, texCoords, normals, etc.)
- * using perspective-correct interpolation based on barycentric coordinates and perspective weights.
- *
- * @param interpolated Output parameter containing the interpolated vertex attributes
- * @param v Array of three Varyings containing the vertex attributes of the triangle
- * @param b Barycentric coordinates (b.x, b.y, b.z) for interpolation
- * @param w Perspective weights for correct interpolation
- *         w.xyz(): Individual perspective weights for each vertex
- *         w.w: Correction factor for perspective-correct interpolation
- * @param fragmentDepth The depth value of the current fragment
+ * @param interpolated 输出插值后的顶点属性
+ * @param v 三角形三个顶点的属性数组 
+ * @param b 重心坐标(b.x, b.y, b.z)
+ * @param w 透视校正权重
+ *    w.xyz(): 每个顶点的权重
+ *    w.w: 透视校正系数 
+ * @param fragmentDepth 片元深度值
  *
  * @details
- * The interpolation is performed using the formula:
- * result = (v0 * w0 * b0 + v1 * w1 * b1 + v2 * w2 * b2) * wCorrection
- * where:
- * - v0, v1, v2: vertex attributes
- * - w0, w1, w2: perspective weights
- * - b0, b1, b2: barycentric coordinates
- * - wCorrection: perspective correction factor
+ * 透视校正插值公式:
+ * result = (v0*w0*b0 + v1*w1*b1 + v2*w2*b2) * wCorrection
+ * - v0,v1,v2: 顶点属性
+ * - w0,w1,w2: 透视权重  
+ * - b0,b1,b2: 重心坐标
+ * - wCorrection: 透视校正系数
  *
- * Special handling is applied for:
- * - Normals: normalized after interpolation
- * - Tangents: w component preserved from first vertex
- * - Light space positions: only interpolated if available (w != 0)
+ * 特殊处理:
+ * - 法线: 插值后需要重新归一化
+ * - 切线: 保留第一个顶点的w分量
+ * - 光照空间位置: 仅当w!=0时才进行插值
  */
 void InitializeInterpolateVaryings(Varyings &interpolated,
                                    const std::array<Varyings, 3> &v,
@@ -371,9 +527,11 @@ inline Vec4f calculatePerspectiveWeights(
     return Vec4f(invW.x, invW.y, invW.z, 1.0f / interpolated_invW);
 }
 
-// 处理单个片元
+// 处理单个片元 - 支持 MSAA
 inline void Renderer::processFragment(
     int x, int y,
+    float sampleX, float sampleY,
+    int sampleIndex,
     const Vec3f &barycentric,
     const Vec4f &weights,
     const std::array<ProcessedVertex, 3> &vertices,
@@ -387,7 +545,12 @@ inline void Renderer::processFragment(
                             Vec3f(1.0f)) *
                         weights.w;
 
-    if (!frameBuffer->depthTest(x, y, depth))
+    // 根据 MSAA 状态选择不同的深度测试
+    bool depthTestPassed = msaaEnabled ? 
+        frameBuffer->depthTestMSAA(x, y, sampleIndex, depth) : 
+        frameBuffer->depthTest(x, y, depth);
+        
+    if (!depthTestPassed)
         return;
 
     // Stack-allocated varyings for better cache performance
@@ -401,27 +564,24 @@ inline void Renderer::processFragment(
     const FragmentOutput output = shader->fragmentShader(interpolatedVaryings);
     if (!output.discard)
     {
-        frameBuffer->setPixel(x, y, depth, output.color);
+        if (msaaEnabled) {
+            frameBuffer->setMSAASample(x, y, sampleIndex, depth, output.color);
+        } else {
+            frameBuffer->setPixel(x, y, depth, output.color);
+        }
     }
 }
+
+// 判断三角形是否背面朝向
 static bool is_back_facing(const Vec3f &v0, const Vec3f &v1, const Vec3f &v2)
 {
-    // 计算三角形的面积
-    float signed_area = (v1.x - v0.x) * (v2.y - v0.y) - (v2.x - v0.x) * (v1.y - v0.y); // AB AC
-    // 如果面积小于0，则三角形是后向的
+    // 计算三角形的有向面积
+    float signed_area = (v1.x - v0.x) * (v2.y - v0.y) - (v2.x - v0.x) * (v1.y - v0.y);
+    // 如果面积小于等于0，则三角形是背面朝向的
     return signed_area <= 0;
 }
-// 主三角形光栅化函数
-/**
- * @brief Rasterizes a triangle and processes its fragments using the provided shader.
- *
- * This function performs the rasterization of a triangle defined by its vertices and
- * processes each fragment using the provided shader. It handles perspective correction,
- * depth testing, and writes the final color to the framebuffer.
- *
- * @param triangle The triangle to be rasterized.
- * @param shader The shader used for processing fragments.
- */
+
+// 主三角形光栅化函数 - 支持 MSAA
 void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShader> shader)
 {
     if (!shader)
@@ -434,53 +594,61 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
     std::array<ProcessedVertex, 3> verts;
     processTriangleVertices(triangle, shader, verts);
     
-
     // 计算三角形区域
     const Vec2f v0(verts[0].screenPosition.xy());
     const Vec2f v1(verts[1].screenPosition.xy());
     const Vec2f v2(verts[2].screenPosition.xy());
 
     // 计算三角形的面积2倍 如果面积小于0，则三角形是后向的,背面剔除
-    const float area2 = cross(v1 - v0, v2 - v1);               // AB BC
+    const float area2 = cross(v1 - v0, v2 - v0);
     float viewport_sign = (projMatrix.m11 < 0) ? 1.0f : -1.0f; // 视口坐标
     
-    if ((area2 * viewport_sign) <= 1e-8f) return;
-        
-
+    if ((area2 * viewport_sign) <= EPSILON) return;
+    
     // 计算包围盒,限制包围盒在屏幕范围内
     auto [minX, minY, maxX, maxY] = calculateBoundingBox(
         {verts[0].screenPosition, verts[1].screenPosition, verts[2].screenPosition},
         frameBuffer->getWidth(), frameBuffer->getHeight());
 
+    // 计算三角形的面积的倒数
+    const float invArea2 = 1.0f / area2;
+
     // 使用 OpenMP 优化的光栅化主循环
-
-       // 计算三角形的面积的倒数
-       const float invArea2 = 1.0f / area2;
-
-    // 注意：不要在这里设置线程数，应该在程序初始化时设置一次
-    // #pragma omp parallel for schedule(dynamic, 16)
+    // #pragma omp parallel for collapse(2) if(maxX - minX > 32 || maxY - minY > 32)
     for (int y = minY; y <= maxY; ++y)
     {
         for (int x = minX; x <= maxX; ++x)
         {
-            const Vec2f p(x, y);
-            const float alpha = cross(v1 - p, v2 - p) * invArea2;
-            const float beta = cross(v2 - p, v0 - p) * invArea2;
-            const float gamma = 1.0f - alpha - beta;
-
-            // Early exit if any barycentric coordinate is negative (outside the triangle)
-            if (alpha < 0 || beta < 0 || gamma < 0)
-            {
-                continue;
-            }
-
-            if (alpha >= 0 && beta >= 0 && gamma >= 0)
-            {
-                // 计算重心坐标
-                const Vec3f barycentric(alpha, beta, gamma);
-                const auto weights = calculatePerspectiveWeights(barycentric, verts);
-
-                processFragment(x, y, barycentric, weights, verts, shader);
+            if (msaaEnabled) {
+                // MSAA 模式 - 对每个像素的多个采样点进行处理
+                for (int s = 0; s < MSAA_SAMPLES; ++s) {
+                    float sampleX = x + MSAA_OFFSETS[s].x;
+                    float sampleY = y + MSAA_OFFSETS[s].y;
+                    
+                    // 计算采样点的重心坐标
+                    const Vec3f barycentric = computeBarycentric2D(sampleX, sampleY, 
+                        {verts[0].screenPosition, verts[1].screenPosition, verts[2].screenPosition});
+                    
+                    // 检查采样点是否在三角形内
+                    if (isInsideTriangle(barycentric.x, barycentric.y, barycentric.z)) {
+                        const auto weights = calculatePerspectiveWeights(barycentric, verts);
+                        processFragment(x, y, sampleX, sampleY, s, barycentric, weights, verts, shader);
+                    }
+                }
+            } else {
+                // 非 MSAA 模式 - 对像素中心进行采样
+                const float pixelCenterX = x + 0.5f;
+                const float pixelCenterY = y + 0.5f;
+                
+                // 计算像素中心的重心坐标
+                const Vec3f barycentric = computeBarycentric2D(pixelCenterX, pixelCenterY, 
+                    {verts[0].screenPosition, verts[1].screenPosition, verts[2].screenPosition});
+                
+                // 检查像素中心是否在三角形内
+                if (isInsideTriangle(barycentric.x, barycentric.y, barycentric.z)) {
+                    const auto weights = calculatePerspectiveWeights(barycentric, verts);
+                    processFragment(x, y, pixelCenterX, pixelCenterY, 0, barycentric, weights, verts, shader);
+                }
             }
         }
     }
@@ -502,5 +670,10 @@ void Renderer::drawMesh(const std::shared_ptr<Mesh> &mesh, std::shared_ptr<IShad
     {
         // 直接使用栅格化函数渲染三角形
         rasterizeTriangle(tri, activeShader);
+    }
+    
+    // 如果启用了 MSAA，在所有三角形渲染完成后解析 MSAA 缓冲区
+    if (msaaEnabled) {
+        frameBuffer->resolveMSAA();
     }
 }

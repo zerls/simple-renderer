@@ -34,6 +34,7 @@ int main()
 
     // 创建渲染器
     Renderer renderer(WIDTH, HEIGHT);
+    renderer.enableMSAA(true); // 启用 MSAA
 
     // 创建场景
     Scene scene;
@@ -106,9 +107,7 @@ int main()
     scene.render(renderer);
 
     // 保存结果
-    // 使用新的纹理IO库保存图像
-    saveToPPM("../output/scene.ppm",renderer.getFrameBuffer());
-    // renderer.saveFrameBufferToPPM("../output/scene.ppm");
+    saveToPPM("../output/scene_MSAA.ppm",renderer.getFrameBuffer());
 
     std::cout << "渲染完成!" << std::endl;
 

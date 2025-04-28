@@ -1,17 +1,24 @@
-// renderer.h的修改
+// renderer.h - 光栅化渲染器头文件
 #pragma once
 
 #include "maths.h"
 #include "shader.h"
 #include "material.h"
-#include "texture.h"         // 使用新的纹理库
-#include "texture_sampler.h" // 使用新的纹理采样器
+#include "texture.h"         // 使用纹理库
+#include "texture_sampler.h" // 使用纹理采样器
+#include <memory>
+#include <vector>
+#include <array>
 
 // 前向声明
 class Mesh;
 class IShader;
 struct ShaderUniforms;
 struct Varyings;
+
+// 定义 MSAA 采样点数量和 epsilon 常量
+// constexpr int MSAA_SAMPLES = 4; // 4x MSAA
+// constexpr float EPSILON = 1e-6f;
 
 // 帧缓冲类
 class FrameBuffer
@@ -20,18 +27,32 @@ public:
     FrameBuffer(int width, int height);
     ~FrameBuffer() = default;
 
-    // 设置像素（将Color替换为float4）
-    void setPixel(int x, int y, float depth, const float4 &color);
-    void setPixel(int x, int y, const float4 &color);
+    // 设置像素（不带深度值）
+    void setPixel(int x, int y, const Vec4f &color);
+    
+    // 设置像素（带深度值）
+    void setPixel(int x, int y, float depth, const Vec4f &color);
+    
+    // 设置 MSAA 采样点
+    void setMSAASample(int x, int y, int sampleIndex, float depth, const Vec4f &color);
+    
+    // 解析 MSAA 缓冲区到普通缓冲区
+    void resolveMSAA();
+    
+    // 启用或禁用 MSAA
+    void enableMSAA(bool enable);
 
     // 获取深度值
     float getDepth(int x, int y) const;
 
     // 深度测试（返回是否通过测试）
     bool depthTest(int x, int y, float depth) const;
+    
+    // MSAA 深度测试
+    bool depthTestMSAA(int x, int y, int sampleIndex, float depth) const;
 
     // 清除缓冲区
-    void clear(const float4 &color = float4(0, 0, 0, 1), float depth = 1.0f);
+    void clear(const Vec4f &color = Vec4f(0.0f, 0.0f, 0.0f, 1.0f), float depth = 1.0f);
 
     // 获取帧缓冲区数据
     const uint8_t *getData() const { return frameData.data(); }
@@ -42,14 +63,19 @@ public:
 private:
     int width;
     int height;
-    std::vector<uint8_t> frameData; // 按 RGBA 格式存储
-    std::vector<float> depthBuffer; // 深度缓冲区
+    std::vector<uint8_t> frameData;     // 按 RGBA 格式存储
+    std::vector<float> depthBuffer;     // 深度缓冲区
+    
+    // MSAA相关
+    bool msaaEnabled;
+    std::vector<uint8_t> msaaColorBuffer; // MSAA颜色缓冲区
+    std::vector<float> msaaDepthBuffer;   // MSAA深度缓冲区
 
     bool isValidCoord(int x, int y) const { return x >= 0 && x < width && y >= 0 && y < height; }
     int calcIndex(int x, int y) const { return y * width + x; }
 };
 
-
+// 处理后的顶点数据
 struct ProcessedVertex {
     Vec4f clipPosition;
     Vec3f screenPosition;
@@ -70,7 +96,10 @@ public:
     void rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShader> shader);
 
     // 清除屏幕
-    void clear(const float4 &color = float4(0, 0, 0, 1));
+    void clear(const Vec4f &color = Vec4f(0.0f, 0.0f, 0.0f, 1.0f));
+    
+    // 启用或禁用 MSAA
+    void enableMSAA(bool enable);
 
     // 设置变换矩阵
     void setModelMatrix(const Matrix4x4f &matrix) { modelMatrix = matrix; }
@@ -84,7 +113,7 @@ public:
     Matrix4x4f getMVPMatrix() const { return projMatrix * viewMatrix * modelMatrix; }
 
     // 顶点变换和屏幕映射
-    Vec3f screenMapping(const Vec3f &clipPos);
+    Vec3f screenMapping(const Vec3f &ndcPos);
 
     // 获取帧缓冲
     const FrameBuffer &getFrameBuffer() const { return *frameBuffer; }
@@ -114,21 +143,29 @@ private:
 
     std::shared_ptr<IShader> shader; // 当前着色器
     Light light;                     // 光源
-    Vec3f eyePosWS;
+    Vec3f eyePosWS;                  // 眼睛位置（世界空间）
+    bool msaaEnabled;                // MSAA启用标志
 
+    // 处理三角形顶点
     void processTriangleVertices(
         const Triangle &triangle,
         std::shared_ptr<IShader> shader,
         std::array<ProcessedVertex, 3> &processedVertices);
-    void processFragment(
+        
+    // 处理单个片元 - 支持 MSAA
+    inline void processFragment(
         int x, int y,
+        float sampleX, float sampleY,
+        int sampleIndex,
         const Vec3f &barycentric,
-        const float4 &weights,
+        const Vec4f &weights,
         const std::array<ProcessedVertex, 3> &vertices,
         std::shared_ptr<IShader> shader);
-
 
     // 阴影贴图相关
     std::shared_ptr<Texture> shadowMap;
     std::unique_ptr<FrameBuffer> shadowFrameBuffer;
 };
+
+// 创建阴影贴图着色器
+std::shared_ptr<IShader> createShadowMapShader();
