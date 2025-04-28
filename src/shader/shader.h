@@ -5,7 +5,6 @@
 #include "maths.h"
 #include "texture.h" // 使用新的纹理库
 #include "common.h"
-#include "texture.h"
 #include <memory>
 
 // 着色器输入/输出结构体
@@ -18,16 +17,16 @@ struct ShaderUniforms
     float3 eyePosition;     // 相机位置（世界空间）
     Light light;            // 光源信息
     Surface surface;        // 材质信息
-    std::unordered_map<std::string, std::shared_ptr<Texture>> textures;
     // 阴影相关
-    bool useShadowMap = false;
-    std::shared_ptr<Texture> shadowMap; // 阴影贴图
-    Matrix4x4f lightSpaceMatrix;        // 光源空间变换矩阵（视图*投影）
+    bool useShadowMap = false;   // 是否使用阴影贴图
+    Matrix4x4f lightSpaceMatrix; // 光源空间变换矩阵（视图*投影）
+
+    std::unordered_map<std::string, std::shared_ptr<Texture>> textures;
 };
 
-static constexpr const char* _ShadowMap ="shadowmap";
-static constexpr const char* _ColorMap ="colormap";
-static constexpr const char* _NormalMap = "normalmap";
+static constexpr const char *_ShadowMap = "shadowmap";
+static constexpr const char *_ColorMap = "colormap";
+static constexpr const char *_NormalMap = "normalmap";
 
 // 顶点着色器输入
 struct VertexAttributes
@@ -73,8 +72,11 @@ public:
     IShader() : IResource(ResourceType::SHADER) {}
     virtual ~IShader() = default;
 
-    // 设置统一变量
-    virtual void setUniforms(const ShaderUniforms &uniforms) = 0;
+    // 设置着色器的uniform变量
+    virtual void setUniforms(const ShaderUniforms &uniforms)
+    {
+        this->uniforms = uniforms;
+    }
 
     // 顶点着色器
     // 输入：单个顶点属性
@@ -87,7 +89,7 @@ public:
     virtual FragmentOutput fragmentShader(const Varyings &input) = 0;
 
     // 核心方法：安全地采样纹理
-    float4 sampleTexture(const std::string &name,const SamplerState &samplerstate, const float2 &uv) const
+    float4 sampleTexture(const std::string &name, const SamplerState &samplerstate, const float2 &uv) const
     {
         auto it = uniforms.textures.find(name);
         if (it != uniforms.textures.end() && it->second)
@@ -95,18 +97,14 @@ public:
             return it->second->sample(uv, samplerstate);
         }
         // 纹理不存在或为空，返回错误颜色（紫色）
-        return float4(0);
+        return float4(1.0f, 0.0f, 1.0f, 1.0f);
     }
 };
 
 // 基础着色器实现（无光照）
 class BasicShader : public IShader
 {
-protected:
-    ShaderUniforms uniforms;
-
 public:
-    virtual void setUniforms(const ShaderUniforms &uniforms) override;
     virtual float4 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
     virtual FragmentOutput fragmentShader(const Varyings &input) override;
 };
@@ -114,28 +112,30 @@ public:
 // 带Phong光照模型的着色器
 class PhongShader : public IShader
 {
-// protected:
-//     ShaderUniforms uniforms;
-
 public:
-    virtual void setUniforms(const ShaderUniforms &uniforms) override;
     virtual float4 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
     virtual FragmentOutput fragmentShader(const Varyings &input) override;
 
 protected:
     // 计算阴影因子
-    float calculateShadow(const float4 &positionLightSpace) const;
+    float calculateShadow(const float4 &positionLightSpace,const float NoL) const;
 };
 
 // 自定义着色器示例：卡通渲染着色器
 class ToonShader : public IShader
 {
 protected:
-    ShaderUniforms uniforms;
     int levels = 4; // 色阶数量
 
 public:
-    virtual void setUniforms(const ShaderUniforms &uniforms) override;
+    virtual float4 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
+    virtual FragmentOutput fragmentShader(const Varyings &input) override;
+};
+
+// 阴影贴图生成着色器
+class ShadowMapShader : public IShader
+{
+public:
     virtual float4 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
     virtual FragmentOutput fragmentShader(const Varyings &input) override;
 };
@@ -144,36 +144,5 @@ public:
 std::shared_ptr<IShader> createBasicShader();
 std::shared_ptr<IShader> createPhongShader();
 std::shared_ptr<IShader> createToonShader();
-
-class TexturedPhongShader : public PhongShader
-{
-private:
-    std::shared_ptr<Texture> diffuseMap = nullptr;
-    std::shared_ptr<Texture> normalMap = nullptr;
-
-public:
-    void setDiffuseMap(std::shared_ptr<Texture> texture) { diffuseMap = texture; }
-    void setNormalMap(std::shared_ptr<Texture> texture) { normalMap = texture; }
-
-    virtual FragmentOutput fragmentShader(const Varyings &input) override;
-};
-
-// 工厂函数
-std::shared_ptr<IShader> createTexturedPhongShader(
-    std::shared_ptr<Texture> diffuseMap = nullptr,
-    std::shared_ptr<Texture> normalMap = nullptr);
-
-// 阴影贴图生成着色器
-class ShadowMapShader : public IShader
-{
-protected:
-    ShaderUniforms uniforms;
-
-public:
-    virtual void setUniforms(const ShaderUniforms &uniforms) override;
-    virtual float4 vertexShader(const VertexAttributes &attributes, Varyings &output) override;
-    virtual FragmentOutput fragmentShader(const Varyings &input) override;
-};
-
 // 创建阴影贴图着色器
 std::shared_ptr<IShader> createShadowMapShader();

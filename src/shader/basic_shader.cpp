@@ -1,9 +1,5 @@
 #include "shader.h"
 //无光照UnLit shader
-void BasicShader::setUniforms(const ShaderUniforms &uniforms)
-{
-    this->uniforms = uniforms;
-}
 
 float4 BasicShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
 {

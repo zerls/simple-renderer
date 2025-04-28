@@ -200,50 +200,6 @@ Vec3f transformNormal(const Matrix4x4f& modelMatrix, const Vec3f& normal) {
     return normalize(transformDir(modelMatrix,normal));
 }
 
-// 透视校正插值函数 (Vec2f/float2 版本)
-Vec2f interpolatePerspectiveCorrect(
-    const Vec2f &attr0, const Vec2f &attr1, const Vec2f &attr2, // 三个顶点的属性值
-    const Vec3f &lambda,                                        // 重心坐标系数
-    const Vec3f &w,                                             // 顶点的 1/w 值（透视除法前的倒数）
-    float w_correct                                             // 插值后的 1/w 用于校正
-)
-{
-    Vec2f result;
-    result.x = (lambda.x * attr0.x * w.x + lambda.y * attr1.x * w.y + lambda.z * attr2.x * w.z) * w_correct;
-    result.y = (lambda.x * attr0.y * w.x + lambda.y * attr1.y * w.y + lambda.z * attr2.y * w.z) * w_correct;
-    return result;
-}
-
-// 透视校正插值函数 (Vec3f/float3 版本)
-Vec3f interpolatePerspectiveCorrect(
-    const Vec3f &attr0, const Vec3f &attr1, const Vec3f &attr2, // 三个顶点的属性值
-    const Vec3f &lambda,                                        // 重心坐标系数
-    const Vec3f &w,                                             // 顶点的 1/w 值（透视除法前的倒数）
-    float w_correct                                             // 插值后的 1/w 用于校正
-)
-{
-    Vec3f result;
-    result.x = (lambda.x * attr0.x * w.x + lambda.y * attr1.x * w.y + lambda.z * attr2.x * w.z) * w_correct;
-    result.y = (lambda.x * attr0.y * w.x + lambda.y * attr1.y * w.y + lambda.z * attr2.y * w.z) * w_correct;
-    result.z = (lambda.x * attr0.z * w.x + lambda.y * attr1.z * w.y + lambda.z * attr2.z * w.z) * w_correct;
-    return result;
-}
-
-// 透视校正插值函数 (Vec4f/float4 版本)
-Vec4f interpolatePerspectiveCorrect(
-    const Vec4f &attr0, const Vec4f &attr1, const Vec4f &attr2, // 三个顶点的属性值
-    const Vec3f &lambda,                                        // 重心坐标系数
-    const Vec3f &w,                                             // 顶点的 1/w 值（透视除法前的倒数）
-    float w_correct                                             // 插值后的 1/w 用于校正
-)
-{
-    Vec4f result;
-    result.x = (lambda.x * attr0.x * w.x + lambda.y * attr1.x * w.y + lambda.z * attr2.x * w.z) * w_correct;
-    result.y = (lambda.x * attr0.y * w.x + lambda.y * attr1.y * w.y + lambda.z * attr2.y * w.z) * w_correct;
-    result.z = (lambda.x * attr0.z * w.x + lambda.y * attr1.z * w.y + lambda.z * attr2.z * w.z) * w_correct;
-    result.w = (lambda.x * attr0.w * w.x + lambda.y * attr1.w * w.y + lambda.z * attr2.w * w.z) * w_correct;
-    return result;
-}
 
 // Shader Common - smoothstep 实现
 float smoothstep(float edge0, float edge1, float x) {

@@ -3,11 +3,6 @@
 #include <algorithm>
 #include <cmath>
 
-void ShadowMapShader::setUniforms(const ShaderUniforms &uniforms)
-{
-    this->uniforms = uniforms;
-}
-
 float4 ShadowMapShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
 {
     // 只需要将顶点变换到光源空间

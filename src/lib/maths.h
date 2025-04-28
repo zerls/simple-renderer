@@ -51,6 +51,7 @@ public:
     T x, y, z;
     // 构造函数
     constexpr Vec3() : x(0), y(0), z(0) {}
+    constexpr Vec3(T t) : x(t), y(t), z(t) {}
     constexpr Vec3(T x, T y, T z) : x(x), y(y), z(z) {}
 
     constexpr T dot(const Vec3<T> &other) const { return x * other.x + y * other.y + z * other.z; }                                                // 点积
@@ -78,6 +79,7 @@ public:
         T invScalar = static_cast<T>(1) / scalar;
         return Vec3<T>(x * invScalar, y * invScalar, z * invScalar);
     }
+    Vec2<T> xy() const { return Vec2<T>(x, y); } // 返回 Vec2<T> 形式的 x, y 分量
 };
 
 // Vec4 实现
@@ -194,10 +196,6 @@ Vec3f transformNoDiv(const Matrix4x4f &matrix, const Vec3f &vector, float w = 1.
 Vec3f transformDir(const Matrix4x4f &mat, const Vec3f &dir);
 Vec3f transformNormal(const Matrix4x4f &modelMatrix, const Vec3f &normal);
 
-// 透视校正插值函数
-Vec2f interpolatePerspectiveCorrect(const Vec2f &attr0, const Vec2f &attr1, const Vec2f &attr2, const Vec3f &lambda, const Vec3f &w, float w_correct);
-Vec3f interpolatePerspectiveCorrect(const Vec3f &attr0, const Vec3f &attr1, const Vec3f &attr2, const Vec3f &lambda, const Vec3f &w, float w_correct);
-Vec4f interpolatePerspectiveCorrect(const Vec4f &attr0, const Vec4f &attr1, const Vec4f &attr2, const Vec3f &lambda, const Vec3f &w, float w_correct);
 
 // Shader Common
 float smoothstep(float edge0, float edge1, float x);

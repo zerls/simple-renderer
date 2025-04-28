@@ -364,14 +364,14 @@ void Scene::render(Renderer &renderer)
         uniforms.light = renderer.getLight();
         uniforms.surface = material->getSurface();
         uniforms.textures[_ColorMap] = getTexture(material->getDiffuseMapGUID());
-        uniforms.textures[_ShadowMap] = shadowMap;
+        
         uniforms.textures[_NormalMap] = getTexture(material->getNormalMapGUID());
 
         // 如果启用了阴影映射，设置阴影相关参数
         if (shadowMappingEnabled && obj.receiveShadow && shadowMap)
         {
             uniforms.useShadowMap = true;
-            uniforms.shadowMap = shadowMap;
+            uniforms.textures[_ShadowMap] = shadowMap;
             uniforms.lightSpaceMatrix = lightSpaceMatrix;
         }
         else

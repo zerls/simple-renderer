@@ -4,7 +4,7 @@
 #include "maths.h"
 #include "shader.h"
 #include "material.h"
-#include "texture.h"      // 使用新的纹理库
+#include "texture.h"         // 使用新的纹理库
 #include "texture_sampler.h" // 使用新的纹理采样器
 
 // 前向声明
@@ -23,16 +23,16 @@ public:
     // 设置像素（将Color替换为float4）
     void setPixel(int x, int y, float depth, const float4 &color);
     void setPixel(int x, int y, const float4 &color);
-    
+
     // 获取深度值
     float getDepth(int x, int y) const;
-    
+
     // 深度测试（返回是否通过测试）
     bool depthTest(int x, int y, float depth) const;
-    
+
     // 清除缓冲区
     void clear(const float4 &color = float4(0, 0, 0, 1), float depth = 1.0f);
-    
+
     // 获取帧缓冲区数据
     const uint8_t *getData() const { return frameData.data(); }
 
@@ -47,6 +47,13 @@ private:
 
     bool isValidCoord(int x, int y) const { return x >= 0 && x < width && y >= 0 && y < height; }
     int calcIndex(int x, int y) const { return y * width + x; }
+};
+
+
+struct ProcessedVertex {
+    Vec4f clipPosition;
+    Vec3f screenPosition;
+    Varyings varying;
 };
 
 // 光栅化渲染器类
@@ -81,10 +88,10 @@ public:
 
     // 获取帧缓冲
     const FrameBuffer &getFrameBuffer() const { return *frameBuffer; }
-    
+
     // 创建阴影贴图
     std::shared_ptr<Texture> createShadowMap(int width, int height);
-    
+
     // 渲染阴影贴图
     void shadowPass(const std::vector<std::pair<std::shared_ptr<Mesh>, Matrix4x4f>> &shadowCasters);
 
@@ -94,7 +101,7 @@ public:
     // 光照相关方法
     void setLight(const Light &light) { this->light = light; }
     Light getLight() const { return light; }
-    
+
     // 世界视角相关方法
     void setEye(const Vec3f eyePosWS) { this->eyePosWS = eyePosWS; }
     Vec3f getEye() const { return eyePosWS; }
@@ -108,7 +115,19 @@ private:
     std::shared_ptr<IShader> shader; // 当前着色器
     Light light;                     // 光源
     Vec3f eyePosWS;
-    
+
+    void processTriangleVertices(
+        const Triangle &triangle,
+        std::shared_ptr<IShader> shader,
+        std::array<ProcessedVertex, 3> &processedVertices);
+    void processFragment(
+        int x, int y,
+        const Vec3f &barycentric,
+        const float4 &weights,
+        const std::array<ProcessedVertex, 3> &vertices,
+        std::shared_ptr<IShader> shader);
+
+
     // 阴影贴图相关
     std::shared_ptr<Texture> shadowMap;
     std::unique_ptr<FrameBuffer> shadowFrameBuffer;

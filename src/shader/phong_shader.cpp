@@ -4,18 +4,15 @@
 #include <cmath>
 
 // 实现阴影计算函数
-float PhongShader::calculateShadow(const float4& positionLightSpace) const
+float PhongShader::calculateShadow(const float4& positionLightSpace, const float NoL) const
 {
-    if (!uniforms.useShadowMap || !uniforms.shadowMap) {
+    auto shadowMap = uniforms.textures.find(_ShadowMap)->second;
+    if (!uniforms.useShadowMap || !shadowMap) {
         return 1.0f; // 无阴影，完全亮
     }
     
     // 执行透视除法
-    float3 projCoords = float3(
-        positionLightSpace.x / positionLightSpace.w,
-        positionLightSpace.y / positionLightSpace.w,
-        positionLightSpace.z / positionLightSpace.w
-    );
+    float3 projCoords = positionLightSpace.xyz()/positionLightSpace.w;
     
     // 变换到[0,1]范围
     projCoords = float3(
@@ -25,22 +22,25 @@ float PhongShader::calculateShadow(const float4& positionLightSpace) const
     );
     
     // 获取最近深度值
-    float closestDepth = uniforms.shadowMap->sample(float2(projCoords.x, projCoords.y),SamplerState::LINEAR_CLAMP).x;
+    float closestDepth = shadowMap->sample(projCoords.xy(),SamplerState::LINEAR_CLAMP).x;
     
     // 获取当前片段在光源视角下的深度
     float currentDepth = projCoords.z;
     
-    // 应用阴影偏移，避免阴影痤疮
-    const float bias = 0.005f;
+    // 方案1: 固定z-offset bias
+    const float constantBias = 0.005f;
+    
+    // 方案2: 根据法线和光照方向动态调整bias
+    float cosAngle = std::max(NoL, 0.0f);
+    float dynamicBias = std::max(0.005f * (1.0f - cosAngle), 0.005f);
+    
+    // 选择使用哪种bias (这里使用动态bias作为示例)
+    float bias = dynamicBias;
     
     // 执行深度比较
     return (currentDepth - bias > closestDepth) ? 0.5f : 1.0f;
 }
 
-void PhongShader::setUniforms(const ShaderUniforms &uniforms)
-{
-    this->uniforms = uniforms;
-}
 
 float4 PhongShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
 {
@@ -137,7 +137,7 @@ FragmentOutput PhongShader::fragmentShader(const Varyings &input)
     // 计算阴影因子
     float shadow = 1.0f;
     if (uniforms.useShadowMap) {
-        shadow = calculateShadow(input.positionLightSpace);
+        shadow = calculateShadow(input.positionLightSpace,NoL);
     }
     
     // 合并所有光照分量

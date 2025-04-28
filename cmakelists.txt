@@ -1,12 +1,19 @@
 cmake_minimum_required(VERSION 3.12)
 project(SimpleRenderer CXX)
 
+
 # 设置 C++20 标准
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 添加texture子目录
 add_subdirectory(src/lib/texture)
+
+# 设置编译器选项
+include_directories(/opt/homebrew/opt/libomp/lib)
+include_directories(/opt/homebrew/opt/libomp/include)
+set(CMAKE_CXX_FLAGS "${CAMKE_CXX_FLAGS} -O3  ")
+
 
 # 添加可执行文件
 set(SRC_LIST 
@@ -22,6 +29,14 @@ set(SRC_LIST
 )
 
 add_executable(SimpleRenderer ${SRC_LIST})
+
+# -Xclang -fopenmp
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+        message(STATUS "成功加载OpenMP编译器标志: ${OpenMP_CXX_FLAGS}")
+        target_link_libraries(SimpleRenderer PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
 
 # 添加头文件目录
 target_include_directories(SimpleRenderer PRIVATE 

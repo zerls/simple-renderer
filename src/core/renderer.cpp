@@ -2,6 +2,7 @@
 #include "renderer.h"
 #include "mesh.h"
 #include "texture_io.h" // 替换 test.h
+#include <omp.h>
 
 // FrameBuffer 实现
 FrameBuffer::FrameBuffer(int width, int height)
@@ -41,7 +42,7 @@ void FrameBuffer::setPixel(int x, int y, float depth, const Vec4f &color)
 }
 void FrameBuffer::setPixel(int x, int y, const Vec4f &color)
 {
-    // 带深度测试的版本
+
     if (!isValidCoord(x, y))
     {
         return;
@@ -127,7 +128,6 @@ std::shared_ptr<Texture> Renderer::createShadowMap(int width, int height)
 }
 
 // 渲染阴影贴图
-// TODO 阴影渲染 Bias没有实现
 void Renderer::shadowPass(const std::vector<std::pair<std::shared_ptr<Mesh>, Matrix4x4f>> &shadowCasters)
 {
     if (!shadowFrameBuffer || !shadowMap)
@@ -174,7 +174,6 @@ void Renderer::shadowPass(const std::vector<std::pair<std::shared_ptr<Mesh>, Mat
             float depth = frameBuffer->getDepth(x, y);
             // 将深度值写入阴影贴图纹理
             shadowMap->write(x, y, Vec4f(depth));
-            
         }
     }
     // TODO 增加让灰度对比更明显的函数
@@ -195,11 +194,43 @@ Renderer::Renderer(int width, int height)
 {
     // 初始化默认光源
     this->light = Light(Vec3f(0.0f, 0.0f, -1.0f), Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.2f);
+
+    // 设置OpenMP线程数，只需要设置一次
+    omp_set_num_threads(4);
 }
 
 void Renderer::clear(const Vec4f &color)
 {
     frameBuffer->clear(color);
+}
+
+// Calculate bounding box for triangle rasterization
+constexpr auto calculateBoundingBox(
+    const std::array<Vec3f, 3> &screenPositions,
+    const int screenWidth,
+    const int screenHeight)
+{
+    // Use SIMD-friendly min/max operations
+    float minX = screenPositions[0].x;
+    float minY = screenPositions[0].y;
+    float maxX = screenPositions[0].x;
+    float maxY = screenPositions[0].y;
+
+    for (int i = 1; i < 3; ++i)
+    {
+        minX = std::min(minX, screenPositions[i].x);
+        minY = std::min(minY, screenPositions[i].y);
+        maxX = std::max(maxX, screenPositions[i].x);
+        maxY = std::max(maxY, screenPositions[i].y);
+    }
+
+    // Convert to integer coordinates with proper rounding
+    const int boundMinX = std::max(0, static_cast<int>(std::floor(minX)));
+    const int boundMinY = std::max(0, static_cast<int>(std::floor(minY)));
+    const int boundMaxX = std::min(screenWidth - 1, static_cast<int>(std::ceil(maxX)));
+    const int boundMaxY = std::min(screenHeight - 1, static_cast<int>(std::ceil(maxY)));
+
+    return std::make_tuple(boundMinX, boundMinY, boundMaxX, boundMaxY);
 }
 
 // 屏幕映射函数
@@ -213,160 +244,243 @@ Vec3f Renderer::screenMapping(const Vec3f &ndcPos)
     return Vec3f(screenX, screenY, ndcPos.z);
 }
 
-// 更新的三角形栅格化函数（使用外部提供的着色器）
-void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShader> shader)
+// Helper function to interpolate varyings with perspective correction
+/**
+ * @brief Performs perspective-correct interpolation of vertex attributes for a fragment
+ *
+ * This function interpolates various vertex attributes (position, texCoords, normals, etc.)
+ * using perspective-correct interpolation based on barycentric coordinates and perspective weights.
+ *
+ * @param interpolated Output parameter containing the interpolated vertex attributes
+ * @param v Array of three Varyings containing the vertex attributes of the triangle
+ * @param b Barycentric coordinates (b.x, b.y, b.z) for interpolation
+ * @param w Perspective weights for correct interpolation
+ *         w.xyz(): Individual perspective weights for each vertex
+ *         w.w: Correction factor for perspective-correct interpolation
+ * @param fragmentDepth The depth value of the current fragment
+ *
+ * @details
+ * The interpolation is performed using the formula:
+ * result = (v0 * w0 * b0 + v1 * w1 * b1 + v2 * w2 * b2) * wCorrection
+ * where:
+ * - v0, v1, v2: vertex attributes
+ * - w0, w1, w2: perspective weights
+ * - b0, b1, b2: barycentric coordinates
+ * - wCorrection: perspective correction factor
+ *
+ * Special handling is applied for:
+ * - Normals: normalized after interpolation
+ * - Tangents: w component preserved from first vertex
+ * - Light space positions: only interpolated if available (w != 0)
+ */
+void InitializeInterpolateVaryings(Varyings &interpolated,
+                                   const std::array<Varyings, 3> &v,
+                                   const Vec3f &b,
+                                   const Vec4f &w,
+                                   float fragmentDepth)
 {
-    // 如果没有有效的着色器，则直接返回
-    if (!shader)
+    // Extract perspective weight components for better readability
+    const Vec3f weights = w.xyz();
+    const float wCorrection = w.w;
+
+    // Helper lambda for perspective correct interpolation
+    auto interpolate = [&](const auto &v0, const auto &v1, const auto &v2)
     {
-        std::cerr << "错误：未提供有效的着色器，无法渲染三角形。" << std::endl;
-        return;
+        return (v0 * weights.x * b.x + v1 * weights.y * b.y + v2 * weights.z * b.z) * wCorrection;
+    };
+
+    // Interpolate all attributes
+    interpolated.position = interpolate(v[0].position, v[1].position, v[2].position);
+    interpolated.texCoord = interpolate(v[0].texCoord, v[1].texCoord, v[2].texCoord);
+    interpolated.color = interpolate(v[0].color, v[1].color, v[2].color);
+
+    // Normal requires normalization after interpolation
+    interpolated.normal = normalize(interpolate(v[0].normal, v[1].normal, v[2].normal));
+
+    // Tangent interpolation with w component preservation
+    interpolated.tangent = interpolate(v[0].tangent, v[1].tangent, v[2].tangent);
+    interpolated.tangent.w = v[0].tangent.w; // Preserve w component from first vertex
+
+    interpolated.depth = fragmentDepth;
+
+    // Light space position interpolation (if available)
+    if (v[0].positionLightSpace.w != 0)
+    {
+        interpolated.positionLightSpace = interpolate(
+            v[0].positionLightSpace,
+            v[1].positionLightSpace,
+            v[2].positionLightSpace);
     }
+}
 
-    // 对每个顶点运行顶点着色器
-    std::array<Vec4f, 3> clipPositions;
-    std::array<Vec3f, 3> screenPositions;
-    std::array<Varyings, 3> varyings;
+void InitializeVertexAttributes(VertexAttributes &attributes, const Vertex &vertex)
+{
+    // 初始化顶点属性
+    attributes.position = vertex.position;
+    attributes.normal = vertex.normal;
+    attributes.tangent = vertex.tangent;
+    attributes.texCoord = vertex.texCoord;
+    attributes.color = vertex.color;
+}
+// 三角形顶点处理结果
 
+// 三角形顶点处理结果
+void Renderer::processTriangleVertices(
+    const Triangle &triangle,
+    std::shared_ptr<IShader> shader,
+    std::array<ProcessedVertex, 3> &vertices)
+{
+    // 预分配栈内存以提高性能
+    VertexAttributes attributes;
+
+#pragma omp parallel for if (false) // 三角形很小时禁用并行
     for (int i = 0; i < 3; ++i)
     {
-        // 创建顶点属性
-        VertexAttributes attributes;
-        attributes.position = triangle.vertices[i].position;
-        attributes.normal = triangle.vertices[i].normal;
-        attributes.tangent = triangle.vertices[i].tangent;
-        attributes.texCoord = triangle.vertices[i].texCoord;
-        attributes.color = triangle.vertices[i].color;
+        // 初始化顶点属性
+        InitializeVertexAttributes(attributes, triangle.vertices[i]);
 
-        // 运行顶点着色器
-        clipPositions[i] = shader->vertexShader(attributes, varyings[i]);
+        // 顶点着色器处理
+        const Vec4f &clipPos = shader->vertexShader(attributes, vertices[i].varying);
+        vertices[i].clipPosition = clipPos;
 
-        //  透视除法
-        Vec3f ndcPos =  Vec3f(clipPositions[i].x/ clipPositions[i].w,
-                              clipPositions[i].y/ clipPositions[i].w,
-                              clipPositions[i].z/ clipPositions[i].w);
-                
-                            
+        // 透视除法和屏幕映射 (优化除法操作)
+        const float invW = 1.0f / clipPos.w;
+        const Vec3f ndcPos(
+            clipPos.x * invW,
+            clipPos.y * invW,
+            clipPos.z * invW);
 
-        // 屏幕映射
-        screenPositions[i] = screenMapping(ndcPos);
+        vertices[i].screenPosition = screenMapping(ndcPos);
     }
+}
 
-    // 找到三角形的包围盒
-    int minX = static_cast<int>(std::min({screenPositions[0].x, screenPositions[1].x, screenPositions[2].x}));
-    int minY = static_cast<int>(std::min({screenPositions[0].y, screenPositions[1].y, screenPositions[2].y}));
-    int maxX = static_cast<int>(std::ceil(std::max({screenPositions[0].x, screenPositions[1].x, screenPositions[2].x})));
-    int maxY = static_cast<int>(std::ceil(std::max({screenPositions[0].y, screenPositions[1].y, screenPositions[2].y})));
+// 计算透视校正权重 (SIMD友好版本)
+inline Vec4f calculatePerspectiveWeights(
+    const Vec3f &barycentric,
+    const std::array<ProcessedVertex, 3> &vertices)
+{
+    // 预计算倒数以避免重复除法
+    const Vec3f invW(
+        1.0f / vertices[0].clipPosition.w,
+        1.0f / vertices[1].clipPosition.w,
+        1.0f / vertices[2].clipPosition.w);
 
-    // 裁剪到屏幕范围
-    minX = std::max(0, minX);
-    minY = std::max(0, minY);
-    maxX = std::min(frameBuffer->getWidth() - 1, maxX);
-    maxY = std::min(frameBuffer->getHeight() - 1, maxY);
+    // 单次点乘计算插值的w倒数
+    const float interpolated_invW = dot(barycentric, invW);
 
-    Vec2f v0(screenPositions[0].x, screenPositions[0].y);
-    Vec2f v1(screenPositions[1].x, screenPositions[1].y);
-    Vec2f v2(screenPositions[2].x, screenPositions[2].y);
-    // 叉积面积
-    float area = cross(v1 - v0, v2 - v0);
-        // 如果面积为0，则三角形是一条线或一个点
-    if (std::abs(area) < 1e-8)
+    return Vec4f(invW.x, invW.y, invW.z, 1.0f / interpolated_invW);
+}
+
+// 处理单个片元
+inline void Renderer::processFragment(
+    int x, int y,
+    const Vec3f &barycentric,
+    const Vec4f &weights,
+    const std::array<ProcessedVertex, 3> &vertices,
+    std::shared_ptr<IShader> shader)
+{
+    // Early depth testing with vectorized calculation
+    const float depth = dot(barycentric * Vec3f(
+                                              vertices[0].varying.depth * weights.x,
+                                              vertices[1].varying.depth * weights.y,
+                                              vertices[2].varying.depth * weights.z),
+                            Vec3f(1.0f)) *
+                        weights.w;
+
+    if (!frameBuffer->depthTest(x, y, depth))
+        return;
+
+    // Stack-allocated varyings for better cache performance
+    Varyings interpolatedVaryings;
+    InitializeInterpolateVaryings(
+        interpolatedVaryings,
+        {vertices[0].varying, vertices[1].varying, vertices[2].varying},
+        barycentric, weights, depth);
+
+    // Process fragment and write output in one step
+    const FragmentOutput output = shader->fragmentShader(interpolatedVaryings);
+    if (!output.discard)
     {
+        frameBuffer->setPixel(x, y, depth, output.color);
+    }
+}
+static bool is_back_facing(const Vec3f &v0, const Vec3f &v1, const Vec3f &v2)
+{
+    // 计算三角形的面积
+    float signed_area = (v1.x - v0.x) * (v2.y - v0.y) - (v2.x - v0.x) * (v1.y - v0.y); // AB AC
+    // 如果面积小于0，则三角形是后向的
+    return signed_area <= 0;
+}
+// 主三角形光栅化函数
+/**
+ * @brief Rasterizes a triangle and processes its fragments using the provided shader.
+ *
+ * This function performs the rasterization of a triangle defined by its vertices and
+ * processes each fragment using the provided shader. It handles perspective correction,
+ * depth testing, and writes the final color to the framebuffer.
+ *
+ * @param triangle The triangle to be rasterized.
+ * @param shader The shader used for processing fragments.
+ */
+void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShader> shader)
+{
+    if (!shader)
+    {
+        std::cerr << "Error: No valid shader provided for triangle rendering.\n";
         return;
     }
 
-    // 透视校正插值需要的深度倒数
-    float w0 = 1.0f / clipPositions[0].w;
-    float w1 = 1.0f / clipPositions[1].w;
-    float w2 = 1.0f / clipPositions[2].w;
-    Vec3f w = Vec3f(w0, w1, w2);
+    // 处理三角形顶点
+    std::array<ProcessedVertex, 3> verts;
+    processTriangleVertices(triangle, shader, verts);
+    
 
-    // 遍历包围盒中的每个像素
+    // 计算三角形区域
+    const Vec2f v0(verts[0].screenPosition.xy());
+    const Vec2f v1(verts[1].screenPosition.xy());
+    const Vec2f v2(verts[2].screenPosition.xy());
+
+    // 计算三角形的面积2倍 如果面积小于0，则三角形是后向的,背面剔除
+    const float area2 = cross(v1 - v0, v2 - v1);               // AB BC
+    float viewport_sign = (projMatrix.m11 < 0) ? 1.0f : -1.0f; // 视口坐标
+    
+    if ((area2 * viewport_sign) <= 1e-8f) return;
+        
+
+    // 计算包围盒,限制包围盒在屏幕范围内
+    auto [minX, minY, maxX, maxY] = calculateBoundingBox(
+        {verts[0].screenPosition, verts[1].screenPosition, verts[2].screenPosition},
+        frameBuffer->getWidth(), frameBuffer->getHeight());
+
+    // 使用 OpenMP 优化的光栅化主循环
+
+       // 计算三角形的面积的倒数
+       const float invArea2 = 1.0f / area2;
+
+    // 注意：不要在这里设置线程数，应该在程序初始化时设置一次
+    // #pragma omp parallel for schedule(dynamic, 16)
     for (int y = minY; y <= maxY; ++y)
     {
         for (int x = minX; x <= maxX; ++x)
         {
-            Vec2f p(x, y); // 当前像素位置
-            
-            // 计算重心坐标
-            // lambda0对应v0的权重
-            float lambda0 = cross(v1 - p, v2 - p) / area;
-            // lambda1对应v1的权重
-            float lambda1 = cross(v2 - p, v0 - p) / area;
-            // lambda2对应v2的权重
-            float lambda2 = 1.0f - lambda0 - lambda1;
+            const Vec2f p(x, y);
+            const float alpha = cross(v1 - p, v2 - p) * invArea2;
+            const float beta = cross(v2 - p, v0 - p) * invArea2;
+            const float gamma = 1.0f - alpha - beta;
 
-            // 计算重心坐标
-            Vec3f lambda = Vec3f(lambda0, lambda1, lambda2);
-
-            // 检查点是否在三角形内
-            if (lambda0 >= 0 && lambda1 >= 0 && lambda2 >= 0)
+            // Early exit if any barycentric coordinate is negative (outside the triangle)
+            if (alpha < 0 || beta < 0 || gamma < 0)
             {
-                // 透视校正插值
-                float interpolated_w_inverse = lambda0 * w0 + lambda1 * w1 + lambda2 * w2;
-                float w_correct = 1.0f / interpolated_w_inverse;
+                continue;
+            }
 
-                // 插值深度
-                float depth = (lambda0 * varyings[0].depth * w0 +
-                               lambda1 * varyings[1].depth * w1 +
-                               lambda2 * varyings[2].depth * w2) *
-                              w_correct;
+            if (alpha >= 0 && beta >= 0 && gamma >= 0)
+            {
+                // 计算重心坐标
+                const Vec3f barycentric(alpha, beta, gamma);
+                const auto weights = calculatePerspectiveWeights(barycentric, verts);
 
-                // 提前深度测试 - 如果深度测试失败，跳过片元处理
-                if (!frameBuffer->depthTest(x, y, depth))
-                {
-                    continue;
-                }
-
-                // 进行顶点属性的插值
-                Varyings interpolatedVaryings;
-
-                interpolatedVaryings.position = interpolatePerspectiveCorrect(
-                    varyings[0].position, varyings[1].position, varyings[2].position,
-                    lambda, w, w_correct);
-
-                interpolatedVaryings.normal = interpolatePerspectiveCorrect(
-                    varyings[0].normal, varyings[1].normal, varyings[2].normal,
-                    lambda, w, w_correct);
-
-                interpolatedVaryings.normal = normalize(interpolatedVaryings.normal);
-
-                interpolatedVaryings.tangent = interpolatePerspectiveCorrect(
-                    varyings[0].tangent, varyings[1].tangent, varyings[2].tangent,
-                    lambda, w, w_correct);
-
-                interpolatedVaryings.tangent.w = varyings[0].tangent.w;
-
-                interpolatedVaryings.texCoord = interpolatePerspectiveCorrect(
-                    varyings[0].texCoord, varyings[1].texCoord, varyings[2].texCoord,
-                    lambda, w, w_correct);
-              
-                // 透视校正插值颜色
-                interpolatedVaryings.color = interpolatePerspectiveCorrect(
-                    varyings[0].color, varyings[1].color, varyings[2].color,
-                    lambda, w, w_correct);
-
-                interpolatedVaryings.depth = depth;
-
-                // 插值光源空间位置（用于阴影映射）
-                if (varyings[0].positionLightSpace.w != 0)
-                {
-                    interpolatedVaryings.positionLightSpace = interpolatePerspectiveCorrect(
-                        varyings[0].positionLightSpace, varyings[1].positionLightSpace, varyings[2].positionLightSpace,
-                        lambda, w, w_correct);
-                }
-
-                // 运行片段着色器
-                FragmentOutput fragmentOutput = shader->fragmentShader(interpolatedVaryings);
-
-                // 如果片元被丢弃，跳过后续处理
-                if (fragmentOutput.discard)
-                {
-                    continue;
-                }
-
-                // 设置像素颜色
-                frameBuffer->setPixel(x, y, depth, fragmentOutput.color);
+                processFragment(x, y, barycentric, weights, verts, shader);
             }
         }
     }
