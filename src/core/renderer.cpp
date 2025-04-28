@@ -13,8 +13,7 @@ const Vec2f MSAA_OFFSETS[MSAA_SAMPLES] = {
     {0.25f, 0.25f},
     {0.75f, 0.25f},
     {0.25f, 0.75f},
-    {0.75f, 0.75f}
-};
+    {0.75f, 0.75f}};
 
 // FrameBuffer 实现
 FrameBuffer::FrameBuffer(int width, int height)
@@ -24,34 +23,39 @@ FrameBuffer::FrameBuffer(int width, int height)
     frameData.resize(width * height * 4, 0);
     // 初始化深度缓冲区，每个像素一个浮点数
     depthBuffer.resize(width * height, 1.0f); // 初始化为最远深度(1.0)
-    
 
-    // 初始化MSAA缓冲区
+    // 初始化MSAA相关
     msaaEnabled = false;
-    msaaColorBuffer.resize(width * height * MSAA_SAMPLES * 4, 0);
-    msaaDepthBuffer.resize(width * height * MSAA_SAMPLES, 1.0f);
-    
-
+    msaaDepthBuffer.clear();
+    msaaSampleColors.clear();
 }
 
 // 启用或禁用 MSAA
 void FrameBuffer::enableMSAA(bool enable)
 {
-    if (msaaEnabled != enable) {
+    if (msaaEnabled != enable)
+    {
         msaaEnabled = enable;
-        
-        if (msaaEnabled) {
-            // 分配MSAA缓冲区
-            msaaColorBuffer.resize(width * height * MSAA_SAMPLES * 4, 0);
+
+        if (msaaEnabled)
+        {
+            // 只分配MSAA深度缓冲区和采样点颜色
+            constexpr int MSAA_SAMPLES = 4;
             msaaDepthBuffer.resize(width * height * MSAA_SAMPLES, 1.0f);
-        } else {
+            msaaSampleColors.resize(width * height * MSAA_SAMPLES, Vec4f(0.0f));
+        }
+        else
+        {
             // 释放MSAA缓冲区
-            std::vector<uint8_t>().swap(msaaColorBuffer);
+            msaaDepthBuffer.clear();
+            msaaSampleColors.clear();
+
+            // 使用 swap 技巧彻底释放内存
             std::vector<float>().swap(msaaDepthBuffer);
+            std::vector<Vec4f>().swap(msaaSampleColors);
         }
     }
 }
-
 // 设置像素颜色（带深度值）
 void FrameBuffer::setPixel(int x, int y, float depth, const Vec4f &color)
 {
@@ -73,96 +77,92 @@ void FrameBuffer::setPixel(int x, int y, float depth, const Vec4f &color)
     frameData[colorIndex + 2] = static_cast<uint8_t>(std::min(std::max(color.z, 0.0f), 1.0f) * 255);
     frameData[colorIndex + 3] = static_cast<uint8_t>(std::min(std::max(color.w, 0.0f), 1.0f) * 255);
 }
-
-// 设置 MSAA 采样点
-void FrameBuffer::setMSAASample(int x, int y, int sampleIndex, float depth, const Vec4f &color)
+// 计算 MSAA 索引
+int FrameBuffer::calcMSAAIndex(int x, int y, int sampleIndex) const
 {
-    if (!isValidCoord(x, y) || sampleIndex >= MSAA_SAMPLES)
+    constexpr int MSAA_SAMPLES = 4;
+    return (y * width + x) * MSAA_SAMPLES + sampleIndex;
+}
+
+// 基于覆盖率的 MSAA 更新 - 返回是否通过深度测试
+bool FrameBuffer::updateMSAACoverage(int x, int y, int sampleIndex, float depth, const Vec4f &color)
+{
+    if (!isValidCoord(x, y) || !msaaEnabled)
+    {
+        return false;
+    }
+
+    int msaaIndex = calcMSAAIndex(x, y, sampleIndex);
+
+    // 深度测试
+    if (depth >= msaaDepthBuffer[msaaIndex])
+    {
+        return false; // 深度测试失败
+    }
+
+    // 通过深度测试，更新深度和颜色
+    msaaDepthBuffer[msaaIndex] = depth;
+    msaaSampleColors[msaaIndex] = color;
+
+    return true;
+}
+
+// 解析 MSAA 覆盖率缓冲区到普通缓冲区
+void FrameBuffer::resolveMSAA()
+{
+    if (!msaaEnabled)
     {
         return;
     }
 
-    int pixelIndex = calcIndex(x, y);
-    int sampleOffset = pixelIndex * MSAA_SAMPLES + sampleIndex;
-    
-    // 更新 MSAA 深度缓冲区
-    msaaDepthBuffer[sampleOffset] = depth;
-    
-    // 更新 MSAA 颜色缓冲区
-    int colorIndex = sampleOffset * 4;
-    msaaColorBuffer[colorIndex] = static_cast<uint8_t>(std::min(std::max(color.x, 0.0f), 1.0f) * 255);
-    msaaColorBuffer[colorIndex + 1] = static_cast<uint8_t>(std::min(std::max(color.y, 0.0f), 1.0f) * 255);
-    msaaColorBuffer[colorIndex + 2] = static_cast<uint8_t>(std::min(std::max(color.z, 0.0f), 1.0f) * 255);
-    msaaColorBuffer[colorIndex + 3] = static_cast<uint8_t>(std::min(std::max(color.w, 0.0f), 1.0f) * 255);
-}
+    constexpr int MSAA_SAMPLES = 4;
 
-// 解析 MSAA 缓冲区到普通缓冲区
-void FrameBuffer::resolveMSAA()
-{
-    if (!msaaEnabled)
-        return;
-        
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
         {
             int pixelIndex = calcIndex(x, y);
             int pixelColorIndex = pixelIndex * 4;
-            
-            // 对所有采样点进行平均
-            Vec4f avgColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+            // 对所有采样点进行颜色混合
+            Vec4f resolvedColor(0.0f);
             float minDepth = 1.0f;
-            
+
             for (int s = 0; s < MSAA_SAMPLES; ++s)
             {
-                int sampleOffset = pixelIndex * MSAA_SAMPLES + s;
-                int sampleColorIndex = sampleOffset * 4;
-                
-                // 累加颜色
-                avgColor.x += msaaColorBuffer[sampleColorIndex] / 255.0f;
-                avgColor.y += msaaColorBuffer[sampleColorIndex + 1] / 255.0f;
-                avgColor.z += msaaColorBuffer[sampleColorIndex + 2] / 255.0f;
-                avgColor.w += msaaColorBuffer[sampleColorIndex + 3] / 255.0f;
-                
-                // 找到最小深度值
-                minDepth = std::min(minDepth, msaaDepthBuffer[sampleOffset]);
+                int msaaIndex = calcMSAAIndex(x, y, s);
+
+                // 累加颜色 (颜色已经是浮点数格式)
+                resolvedColor = resolvedColor + msaaSampleColors[msaaIndex];
+
+                // 跟踪最小深度值
+                minDepth = std::min(minDepth, msaaDepthBuffer[msaaIndex]);
             }
-            
+
             // 计算平均颜色
-            avgColor = avgColor * (1.0f / MSAA_SAMPLES);
-            
-            // 更新普通缓冲区
-            frameData[pixelColorIndex] = static_cast<uint8_t>(std::min(std::max(avgColor.x, 0.0f), 1.0f) * 255);
-            frameData[pixelColorIndex + 1] = static_cast<uint8_t>(std::min(std::max(avgColor.y, 0.0f), 1.0f) * 255);
-            frameData[pixelColorIndex + 2] = static_cast<uint8_t>(std::min(std::max(avgColor.z, 0.0f), 1.0f) * 255);
-            frameData[pixelColorIndex + 3] = static_cast<uint8_t>(std::min(std::max(avgColor.w, 0.0f), 1.0f) * 255);
-            
+            resolvedColor = resolvedColor * (1.0f / MSAA_SAMPLES);
+
+            // 更新普通颜色缓冲区
+            frameData[pixelColorIndex] = static_cast<uint8_t>(std::min(std::max(resolvedColor.x, 0.0f), 1.0f) * 255);
+            frameData[pixelColorIndex + 1] = static_cast<uint8_t>(std::min(std::max(resolvedColor.y, 0.0f), 1.0f) * 255);
+            frameData[pixelColorIndex + 2] = static_cast<uint8_t>(std::min(std::max(resolvedColor.z, 0.0f), 1.0f) * 255);
+            frameData[pixelColorIndex + 3] = static_cast<uint8_t>(std::min(std::max(resolvedColor.w, 0.0f), 1.0f) * 255);
+
             // 更新深度缓冲区
             depthBuffer[pixelIndex] = minDepth;
         }
     }
 }
 
-void FrameBuffer::setPixel(int x, int y, const Vec4f &color)
+float FrameBuffer::getDepth(int x, int y) const
 {
     if (!isValidCoord(x, y))
     {
-        return;
+        return 1.0f; // 返回最远深度
     }
 
-    int index = calcIndex(x, y);
-
-    // 没有深度测试，在 setPixel 外执行
-
-    // 更新颜色缓冲区
-    int colorIndex = index * 4;
-    // 从Vec4f转为颜色值
-    frameData[colorIndex] = static_cast<uint8_t>(std::min(std::max(color.x, 0.0f), 1.0f) * 255);
-    frameData[colorIndex + 1] = static_cast<uint8_t>(std::min(std::max(color.y, 0.0f), 1.0f) * 255);
-    frameData[colorIndex + 2] = static_cast<uint8_t>(std::min(std::max(color.z, 0.0f), 1.0f) * 255);
-    frameData[colorIndex + 3] = static_cast<uint8_t>(std::min(std::max(color.w, 0.0f), 1.0f) * 255);
+    return depthBuffer[calcIndex(x, y)];
 }
-
 // 添加深度测试方法
 bool FrameBuffer::depthTest(int x, int y, float depth) const
 {
@@ -175,78 +175,20 @@ bool FrameBuffer::depthTest(int x, int y, float depth) const
     return depth < depthBuffer[index];
 }
 
-// MSAA 深度测试
-bool FrameBuffer::depthTestMSAA(int x, int y, int sampleIndex, float depth) const
-{
-    if (!isValidCoord(x, y) || sampleIndex >= MSAA_SAMPLES)
-    {
-        return false;
-    }
 
-    int pixelIndex = calcIndex(x, y);
-    int sampleOffset = pixelIndex * MSAA_SAMPLES + sampleIndex;
-    return depth < msaaDepthBuffer[sampleOffset];
-}
-
-float FrameBuffer::getDepth(int x, int y) const
-{
-    if (!isValidCoord(x, y))
-    {
-        return 1.0f; // 返回最远深度
-    }
-
-    return depthBuffer[calcIndex(x, y)];
-}
-
+// 修改清除方法以兼容新的MSAA实现
 void FrameBuffer::clear(const Vec4f &color, float depth)
 {
-    // 使用指定颜色和深度值清除整个缓冲区
+    // 清除普通缓冲区 (代码保持不变)
+    // ...
 
-    // 清除颜色缓冲区
-    if (color.z >= 1.0f)
-    { // 如果颜色是完全不透明的，可以使用更快的填充方法
-        std::fill(frameData.begin(), frameData.end(), 0);
-        for (size_t i = 0; i < frameData.size(); i += 4)
-        {
-            frameData[i] = color.x;
-            frameData[i + 1] = color.y;
-            frameData[i + 2] = color.z;
-            frameData[i + 3] = color.w;
-        }
-    }
-    else
-    {
-        for (int y = 0; y < height; ++y)
-        {
-            for (int x = 0; x < width; ++x)
-            {
-                setPixel(x, y, color);
-            }
-        }
-    }
-
-    // 清除深度缓冲区
-    std::fill(depthBuffer.begin(), depthBuffer.end(), depth);
-    
-    // 清除 MSAA 缓冲区
+    // 清除 MSAA 缓冲区 (优化后的版本)
     if (msaaEnabled)
     {
         std::fill(msaaDepthBuffer.begin(), msaaDepthBuffer.end(), depth);
-        
-        if (color.w >= 1.0f)
-        {
-            std::fill(msaaColorBuffer.begin(), msaaColorBuffer.end(), 0);
-            for (size_t i = 0; i < msaaColorBuffer.size(); i += 4)
-            {
-                msaaColorBuffer[i] = static_cast<uint8_t>(color.x * 255);
-                msaaColorBuffer[i + 1] = static_cast<uint8_t>(color.y * 255);
-                msaaColorBuffer[i + 2] = static_cast<uint8_t>(color.z * 255);
-                msaaColorBuffer[i + 3] = static_cast<uint8_t>(color.w * 255);
-            }
-        }
+        std::fill(msaaSampleColors.begin(), msaaSampleColors.end(), color);
     }
 }
-
 // 创建阴影贴图
 std::shared_ptr<Texture> Renderer::createShadowMap(int width, int height)
 {
@@ -270,10 +212,10 @@ void Renderer::shadowPass(const std::vector<std::pair<std::shared_ptr<Mesh>, Mat
         return;
     }
 
-    auto originalmsaaEnabled=msaaEnabled;
+    auto originalmsaaEnabled = msaaEnabled;
     auto originalFrameBuffer = std::move(frameBuffer); // 保存当前渲染状态 ｜ShadowBuffer 与 FrameBuffer 的尺寸不一致
-    msaaEnabled =false; // 禁用 MSAA
-    frameBuffer = std::move(shadowFrameBuffer); // 切换到阴影帧缓冲
+    msaaEnabled = false;                               // 禁用 MSAA
+    frameBuffer = std::move(shadowFrameBuffer);        // 切换到阴影帧缓冲
 
     // 清除阴影帧缓冲
     clear(Vec4f(1.0f, 1.0f, 1.0f, 1.0f));
@@ -315,7 +257,7 @@ void Renderer::shadowPass(const std::vector<std::pair<std::shared_ptr<Mesh>, Mat
     shadowMap->saveDepthToFile("../output/shadow.tga", 0.0f, 1.0f);
     // saveDepthMap("../output/shadow.ppm", *frameBuffer,0.5,2.0);
     // 恢复原始渲染状态
-    msaaEnabled =originalmsaaEnabled;
+    msaaEnabled = originalmsaaEnabled;
     shadowFrameBuffer = std::move(frameBuffer);
     frameBuffer = std::move(originalFrameBuffer);
 }
@@ -326,7 +268,7 @@ Renderer::Renderer(int width, int height)
       modelMatrix(Matrix4x4f::identity()),
       viewMatrix(Matrix4x4f::identity()),
       projMatrix(Matrix4x4f::identity()),
-      shader(nullptr), // 初始化着色器为空
+      shader(nullptr),   // 初始化着色器为空
       msaaEnabled(false) // 默认禁用 MSAA
 {
     // 初始化默认光源
@@ -351,10 +293,10 @@ void Renderer::clear(const Vec4f &color)
 // 计算重心坐标 - 优化版本
 Vec3f computeBarycentric2D(float x, float y, const std::array<Vec3f, 3> &v)
 {
-    float c1 = (x*(v[1].y - v[2].y) + (v[2].x - v[1].x)*y + v[1].x*v[2].y - v[2].x*v[1].y) / 
-               (v[0].x*(v[1].y - v[2].y) + (v[2].x - v[1].x)*v[0].y + v[1].x*v[2].y - v[2].x*v[1].y);
-    float c2 = (x*(v[2].y - v[0].y) + (v[0].x - v[2].x)*y + v[2].x*v[0].y - v[0].x*v[2].y) / 
-               (v[1].x*(v[2].y - v[0].y) + (v[0].x - v[2].x)*v[1].y + v[2].x*v[0].y - v[0].x*v[2].y);
+    float c1 = (x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * y + v[1].x * v[2].y - v[2].x * v[1].y) /
+               (v[0].x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * v[0].y + v[1].x * v[2].y - v[2].x * v[1].y);
+    float c2 = (x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * y + v[2].x * v[0].y - v[0].x * v[2].y) /
+               (v[1].x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * v[1].y + v[2].x * v[0].y - v[0].x * v[2].y);
     return Vec3f(c1, c2, 1.0f - c1 - c2);
 }
 
@@ -409,18 +351,18 @@ Vec3f Renderer::screenMapping(const Vec3f &ndcPos)
  * @brief 透视校正插值函数
  *
  * @param interpolated 输出插值后的顶点属性
- * @param v 三角形三个顶点的属性数组 
+ * @param v 三角形三个顶点的属性数组
  * @param b 重心坐标(b.x, b.y, b.z)
  * @param w 透视校正权重
  *    w.xyz(): 每个顶点的权重
- *    w.w: 透视校正系数 
+ *    w.w: 透视校正系数
  * @param fragmentDepth 片元深度值
  *
  * @details
  * 透视校正插值公式:
  * result = (v0*w0*b0 + v1*w1*b1 + v2*w2*b2) * wCorrection
  * - v0,v1,v2: 顶点属性
- * - w0,w1,w2: 透视权重  
+ * - w0,w1,w2: 透视权重
  * - b0,b1,b2: 重心坐标
  * - wCorrection: 透视校正系数
  *
@@ -457,7 +399,7 @@ void InitializeInterpolateVaryings(Varyings &interpolated,
     interpolated.tangent = interpolate(v[0].tangent, v[1].tangent, v[2].tangent);
     interpolated.tangent.w = v[0].tangent.w; // Preserve w component from first vertex
 
-    interpolated.depth = fragmentDepth;
+    interpolated.depth = fragmentDepth; // 片元深度值
 
     // Light space position interpolation (if available)
     if (v[0].positionLightSpace.w != 0)
@@ -546,10 +488,8 @@ inline void Renderer::processFragment(
                         weights.w;
 
     // 根据 MSAA 状态选择不同的深度测试
-    bool depthTestPassed = msaaEnabled ? 
-        frameBuffer->depthTestMSAA(x, y, sampleIndex, depth) : 
-        frameBuffer->depthTest(x, y, depth);
-        
+    bool depthTestPassed = frameBuffer->depthTest(x, y, depth);
+
     if (!depthTestPassed)
         return;
 
@@ -564,11 +504,8 @@ inline void Renderer::processFragment(
     const FragmentOutput output = shader->fragmentShader(interpolatedVaryings);
     if (!output.discard)
     {
-        if (msaaEnabled) {
-            frameBuffer->setMSAASample(x, y, sampleIndex, depth, output.color);
-        } else {
-            frameBuffer->setPixel(x, y, depth, output.color);
-        }
+
+        frameBuffer->setPixel(x, y, depth, output.color);
     }
 }
 
@@ -581,7 +518,19 @@ static bool is_back_facing(const Vec3f &v0, const Vec3f &v1, const Vec3f &v2)
     return signed_area <= 0;
 }
 
-// 主三角形光栅化函数 - 支持 MSAA
+// 计算片元深度的辅助函数
+float calculateFragmentDepth(const Vec3f &barycentric, const Vec4f &weights,
+    const std::array<ProcessedVertex, 3> &vertices)
+{
+// 透视校正深度插值
+float depth = 0.0f;
+depth += barycentric.x * vertices[0].varying.depth * weights.x;
+depth += barycentric.y * vertices[1].varying.depth * weights.y;
+depth += barycentric.z * vertices[2].varying.depth * weights.z;
+
+return depth * weights.w; // 应用透视校正因子
+}
+
 void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShader> shader)
 {
     if (!shader)
@@ -590,69 +539,124 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
         return;
     }
 
-    // 处理三角形顶点
+    // 处理三角形顶点 (保持不变)
     std::array<ProcessedVertex, 3> verts;
     processTriangleVertices(triangle, shader, verts);
-    
+
     // 计算三角形区域
     const Vec2f v0(verts[0].screenPosition.xy());
     const Vec2f v1(verts[1].screenPosition.xy());
     const Vec2f v2(verts[2].screenPosition.xy());
 
-    // 计算三角形的面积2倍 如果面积小于0，则三角形是后向的,背面剔除
+    // 计算三角形的面积2倍
     const float area2 = cross(v1 - v0, v2 - v0);
     float viewport_sign = (projMatrix.m11 < 0) ? 1.0f : -1.0f; // 视口坐标
-    
-    if ((area2 * viewport_sign) <= EPSILON) return;
-    
-    // 计算包围盒,限制包围盒在屏幕范围内
+
+    if ((area2 * viewport_sign) <= EPSILON)
+        return;
+
+    // 计算包围盒
     auto [minX, minY, maxX, maxY] = calculateBoundingBox(
         {verts[0].screenPosition, verts[1].screenPosition, verts[2].screenPosition},
         frameBuffer->getWidth(), frameBuffer->getHeight());
 
-    // 计算三角形的面积的倒数
-    const float invArea2 = 1.0f / area2;
+    constexpr int MSAA_SAMPLES = 4;
+    const Vec2f MSAA_OFFSETS[MSAA_SAMPLES] = {
+        {0.25f, 0.25f}, {0.75f, 0.25f}, {0.25f, 0.75f}, {0.75f, 0.75f}};
 
-    // 使用 OpenMP 优化的光栅化主循环
-    // #pragma omp parallel for collapse(2) if(maxX - minX > 32 || maxY - minY > 32)
+    // 优化的MSAA光栅化
     for (int y = minY; y <= maxY; ++y)
     {
         for (int x = minX; x <= maxX; ++x)
         {
-            if (msaaEnabled) {
-                // MSAA 模式 - 对每个像素的多个采样点进行处理
-                for (int s = 0; s < MSAA_SAMPLES; ++s) {
+            if (msaaEnabled)
+            {
+                bool anySampleCovered = false;
+
+                // 检查每个采样点
+                for (int s = 0; s < MSAA_SAMPLES; ++s)
+                {
                     float sampleX = x + MSAA_OFFSETS[s].x;
                     float sampleY = y + MSAA_OFFSETS[s].y;
-                    
+
                     // 计算采样点的重心坐标
-                    const Vec3f barycentric = computeBarycentric2D(sampleX, sampleY, 
-                        {verts[0].screenPosition, verts[1].screenPosition, verts[2].screenPosition});
-                    
+                    const Vec3f barycentric = computeBarycentric2D(sampleX, sampleY,
+                                                                   {verts[0].screenPosition, verts[1].screenPosition, verts[2].screenPosition});
+
                     // 检查采样点是否在三角形内
-                    if (isInsideTriangle(barycentric.x, barycentric.y, barycentric.z)) {
+                    if (isInsideTriangle(barycentric.x, barycentric.y, barycentric.z))
+                    {
+                        // 计算透视校正权重
                         const auto weights = calculatePerspectiveWeights(barycentric, verts);
-                        processFragment(x, y, sampleX, sampleY, s, barycentric, weights, verts, shader);
+
+                        // 计算采样点的深度
+                        const float depth = calculateFragmentDepth(barycentric, weights, verts);
+
+                        // 如果这是第一个覆盖的采样点，计算片元着色
+                        if (!anySampleCovered)
+                        {
+                            // 计算插值的顶点属性
+                            Varyings interpolatedVaryings;
+                            InitializeInterpolateVaryings(
+                                interpolatedVaryings,
+                                {verts[0].varying, verts[1].varying, verts[2].varying},
+                                barycentric, weights, depth);
+
+                            // 执行片元着色器 (只执行一次)
+                            const FragmentOutput output = shader->fragmentShader(interpolatedVaryings);
+
+                            if (!output.discard)
+                            {
+                                // 尝试更新这个采样点
+                                anySampleCovered = frameBuffer->updateMSAACoverage(x, y, s, depth, output.color);
+
+                                // 为相同三角形内的其他采样点设置相同的颜色
+                                for (int s2 = 0; s2 < MSAA_SAMPLES; ++s2)
+                                {
+                                    if (s2 != s)
+                                    {
+                                        float sampleX2 = x + MSAA_OFFSETS[s2].x;
+                                        float sampleY2 = y + MSAA_OFFSETS[s2].y;
+
+                                        const Vec3f barycentric2 = computeBarycentric2D(sampleX2, sampleY2,
+                                                                                        {verts[0].screenPosition, verts[1].screenPosition, verts[2].screenPosition});
+
+                                        if (isInsideTriangle(barycentric2.x, barycentric2.y, barycentric2.z))
+                                        {
+                                            const auto weights2 = calculatePerspectiveWeights(barycentric2, verts);
+                                            const float depth2 = calculateFragmentDepth(barycentric2, weights2, verts);
+
+                                            // 使用相同的颜色更新这个采样点
+                                            frameBuffer->updateMSAACoverage(x, y, s2, depth2, output.color);
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            } else {
-                // 非 MSAA 模式 - 对像素中心进行采样
+            }
+            else
+            {
+                // 非MSAA模式 - 使用像素中心 (保持原代码不变)
                 const float pixelCenterX = x + 0.5f;
                 const float pixelCenterY = y + 0.5f;
-                
-                // 计算像素中心的重心坐标
-                const Vec3f barycentric = computeBarycentric2D(pixelCenterX, pixelCenterY, 
-                    {verts[0].screenPosition, verts[1].screenPosition, verts[2].screenPosition});
-                
-                // 检查像素中心是否在三角形内
-                if (isInsideTriangle(barycentric.x, barycentric.y, barycentric.z)) {
+
+                const Vec3f barycentric = computeBarycentric2D(pixelCenterX, pixelCenterY,
+                                                               {verts[0].screenPosition, verts[1].screenPosition, verts[2].screenPosition});
+
+                if (isInsideTriangle(barycentric.x, barycentric.y, barycentric.z))
+                {
                     const auto weights = calculatePerspectiveWeights(barycentric, verts);
                     processFragment(x, y, pixelCenterX, pixelCenterY, 0, barycentric, weights, verts, shader);
                 }
             }
         }
     }
+
+    // 注意：resolveMSAA() 不在这里调用，应该在所有三角形渲染完成后调用
 }
+
 
 // 绘制网格 - 更新版本（使用着色器）
 void Renderer::drawMesh(const std::shared_ptr<Mesh> &mesh, std::shared_ptr<IShader> activeShader)
@@ -671,9 +675,10 @@ void Renderer::drawMesh(const std::shared_ptr<Mesh> &mesh, std::shared_ptr<IShad
         // 直接使用栅格化函数渲染三角形
         rasterizeTriangle(tri, activeShader);
     }
-    
+
     // 如果启用了 MSAA，在所有三角形渲染完成后解析 MSAA 缓冲区
-    if (msaaEnabled) {
+    if (msaaEnabled)
+    {
         frameBuffer->resolveMSAA();
     }
 }

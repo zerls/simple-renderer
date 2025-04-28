@@ -33,12 +33,6 @@ public:
     // 设置像素（带深度值）
     void setPixel(int x, int y, float depth, const Vec4f &color);
     
-    // 设置 MSAA 采样点
-    void setMSAASample(int x, int y, int sampleIndex, float depth, const Vec4f &color);
-    
-    // 解析 MSAA 缓冲区到普通缓冲区
-    void resolveMSAA();
-    
     // 启用或禁用 MSAA
     void enableMSAA(bool enable);
 
@@ -48,8 +42,11 @@ public:
     // 深度测试（返回是否通过测试）
     bool depthTest(int x, int y, float depth) const;
     
-    // MSAA 深度测试
-    bool depthTestMSAA(int x, int y, int sampleIndex, float depth) const;
+    // MSAA 覆盖率更新 - 基于覆盖率的 MSAA
+    bool updateMSAACoverage(int x, int y, int sampleIndex, float depth, const Vec4f& color);
+    
+    // 解析 MSAA 覆盖率缓冲区到普通缓冲区
+    void resolveMSAA();
 
     // 清除缓冲区
     void clear(const Vec4f &color = Vec4f(0.0f, 0.0f, 0.0f, 1.0f), float depth = 1.0f);
@@ -66,13 +63,14 @@ private:
     std::vector<uint8_t> frameData;     // 按 RGBA 格式存储
     std::vector<float> depthBuffer;     // 深度缓冲区
     
-    // MSAA相关
+    // MSAA相关 - 优化后只保留采样点深度和颜色信息
     bool msaaEnabled;
-    std::vector<uint8_t> msaaColorBuffer; // MSAA颜色缓冲区
     std::vector<float> msaaDepthBuffer;   // MSAA深度缓冲区
+    std::vector<Vec4f> msaaSampleColors;  // 存储每个采样点的颜色 (用于混合)
 
     bool isValidCoord(int x, int y) const { return x >= 0 && x < width && y >= 0 && y < height; }
     int calcIndex(int x, int y) const { return y * width + x; }
+    int calcMSAAIndex(int x, int y, int sampleIndex) const;
 };
 
 // 处理后的顶点数据
