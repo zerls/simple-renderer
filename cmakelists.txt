@@ -20,6 +20,7 @@ set(SRC_LIST
     main.cpp
     src/lib/maths.cpp
     src/core/renderer.cpp
+    src/core/framebuffer.cpp
     src/core/mesh.cpp
     src/core/scene.cpp
     src/core/material.cpp

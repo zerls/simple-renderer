@@ -382,6 +382,6 @@ void Scene::render(Renderer &renderer)
         shader->setUniforms(uniforms);
 
         // 使用对象的材质和着色器渲染网格
-        renderer.drawMesh(mesh, shader);
+        renderer.drawMeshPass(mesh, shader);
     }
 }
