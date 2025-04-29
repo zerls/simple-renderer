@@ -1,6 +1,6 @@
-// 优化后的 FrameBuffer 实现
 #include "renderer.h"
 #include <algorithm>
+#include <cstring> // 为memset添加
 
 // 定义 MSAA 常量
 constexpr int MSAA_SAMPLES = 4;
@@ -13,9 +13,27 @@ const Vec2f MSAA_OFFSETS[MSAA_SAMPLES] = {
 FrameBuffer::FrameBuffer(int width, int height)
     : width(width), height(height), msaaEnabled(false)
 {
-    // 初始化基本缓冲区
-    frameData.resize(width * height * 4, 0);
-    depthBuffer.resize(width * height, 1.0f);
+    // 直接分配内存
+    colorBuffer = new uint8_t[width * height * 4];
+    depthBuffer = new float[width * height];
+    
+    // 初始化缓冲区
+    std::memset(colorBuffer, 0, width * height * 4);
+    std::fill_n(depthBuffer, width * height, 1.0f);
+    
+    // MSAA缓冲区初始为nullptr
+    msaaDepthBuffer = nullptr;
+    msaaSampleCount = nullptr;
+}
+
+FrameBuffer::~FrameBuffer() {
+    delete[] colorBuffer;
+    delete[] depthBuffer;
+    
+    if (msaaDepthBuffer) {
+        delete[] msaaDepthBuffer;
+        delete[] msaaSampleCount;
+    }
 }
 
 void FrameBuffer::enableMSAA(bool enable)
@@ -26,12 +44,20 @@ void FrameBuffer::enableMSAA(bool enable)
     
     if (msaaEnabled) {
         // 分配 MSAA 缓冲区
-        msaaDepthBuffer.resize(width * height * MSAA_SAMPLES, 1.0f);
-        msaaSampleCount.resize(width * height, 0);
+        msaaDepthBuffer = new float[width * height * MSAA_SAMPLES];
+        msaaSampleCount = new int[width * height];
+        
+        // 初始化
+        std::fill_n(msaaDepthBuffer, width * height * MSAA_SAMPLES, 1.0f);
+        std::memset(msaaSampleCount, 0, width * height * sizeof(int));
     } else {
         // 释放 MSAA 缓冲区内存
-        std::vector<float>().swap(msaaDepthBuffer);
-        std::vector<int>().swap(msaaSampleCount);
+        if (msaaDepthBuffer) {
+            delete[] msaaDepthBuffer;
+            delete[] msaaSampleCount;
+            msaaDepthBuffer = nullptr;
+            msaaSampleCount = nullptr;
+        }
     }
 }
 
@@ -49,14 +75,14 @@ void FrameBuffer::setPixel(int x, int y, float depth, const Vec4f &color)
     // 更新深度缓冲区
     depthBuffer[index] = depth;
     
-    // 更新颜色缓冲区（向量化操作）
+    // 更新颜色缓冲区
     int colorIndex = index * 4;
-    auto clamp = [](float v) { return static_cast<uint8_t>(std::min(std::max(v, 0.0f), 1.0f) * 255); };
     
-    frameData[colorIndex]     = clamp(color.x);
-    frameData[colorIndex + 1] = clamp(color.y);
-    frameData[colorIndex + 2] = clamp(color.z);
-    frameData[colorIndex + 3] = clamp(color.w);
+    // 颜色值限制在[0,1]范围内，然后映射到[0,255]
+    colorBuffer[colorIndex]     = static_cast<uint8_t>(std::min(std::max(color.x, 0.0f), 1.0f) * 255);
+    colorBuffer[colorIndex + 1] = static_cast<uint8_t>(std::min(std::max(color.y, 0.0f), 1.0f) * 255);
+    colorBuffer[colorIndex + 2] = static_cast<uint8_t>(std::min(std::max(color.z, 0.0f), 1.0f) * 255);
+    colorBuffer[colorIndex + 3] = static_cast<uint8_t>(std::min(std::max(color.w, 0.0f), 1.0f) * 255);
 }
 
 float FrameBuffer::getDepth(int x, int y) const
@@ -93,28 +119,36 @@ void FrameBuffer::accumulateMSAAColor(int x, int y, int sampleIndex, float depth
     // 更新 MSAA 样本深度
     msaaDepthBuffer[msaaIndex] = depth;
     
-    // 累积颜色（优化的混合操作）
+    // 累积颜色
     int colorIndex = pixelIndex * 4;
     
-    // 获取当前像素颜色
-    Vec4f currentColor(
-        frameData[colorIndex] / 255.0f,
-        frameData[colorIndex + 1] / 255.0f,
-        frameData[colorIndex + 2] / 255.0f,
-        frameData[colorIndex + 3] / 255.0f
-    );
+    // 限制颜色值
+    float r = std::min(std::max(color.x, 0.0f), 1.0f);
+    float g = std::min(std::max(color.y, 0.0f), 1.0f);
+    float b = std::min(std::max(color.z, 0.0f), 1.0f);
+    float a = std::min(std::max(color.w, 0.0f), 1.0f);
     
-    // 计算混合系数和新颜色
+    // 获取当前颜色
+    float current_r = colorBuffer[colorIndex] / 255.0f;
+    float current_g = colorBuffer[colorIndex + 1] / 255.0f;
+    float current_b = colorBuffer[colorIndex + 2] / 255.0f;
+    float current_a = colorBuffer[colorIndex + 3] / 255.0f;
+    
+    // 增加样本计数
     msaaSampleCount[pixelIndex]++;
     float blendFactor = 1.0f / msaaSampleCount[pixelIndex];
-    Vec4f blendedColor = currentColor * (1.0f - blendFactor) + color * blendFactor;
     
-    // 更新帧缓冲区
-    auto clamp = [](float v) { return static_cast<uint8_t>(std::min(std::max(v, 0.0f), 1.0f) * 255); };
-    frameData[colorIndex]     = clamp(blendedColor.x);
-    frameData[colorIndex + 1] = clamp(blendedColor.y);
-    frameData[colorIndex + 2] = clamp(blendedColor.z);
-    frameData[colorIndex + 3] = clamp(blendedColor.w);
+    // 进行颜色混合
+    float blended_r = current_r * (1.0f - blendFactor) + r * blendFactor;
+    float blended_g = current_g * (1.0f - blendFactor) + g * blendFactor;
+    float blended_b = current_b * (1.0f - blendFactor) + b * blendFactor;
+    float blended_a = current_a * (1.0f - blendFactor) + a * blendFactor;
+    
+    // 更新颜色缓冲区
+    colorBuffer[colorIndex]     = static_cast<uint8_t>(blended_r * 255);
+    colorBuffer[colorIndex + 1] = static_cast<uint8_t>(blended_g * 255);
+    colorBuffer[colorIndex + 2] = static_cast<uint8_t>(blended_b * 255);
+    colorBuffer[colorIndex + 3] = static_cast<uint8_t>(blended_a * 255);
     
     // 更新主深度缓冲区（取最小深度）
     if (depth < depthBuffer[pixelIndex]) {
@@ -124,34 +158,33 @@ void FrameBuffer::accumulateMSAAColor(int x, int y, int sampleIndex, float depth
 
 void FrameBuffer::clear(const Vec4f &color, float depth)
 {
-    // 预计算颜色值（避免在循环中重复计算）
+    // 预计算颜色值
     uint8_t r = static_cast<uint8_t>(std::min(std::max(color.x, 0.0f), 1.0f) * 255);
     uint8_t g = static_cast<uint8_t>(std::min(std::max(color.y, 0.0f), 1.0f) * 255);
     uint8_t b = static_cast<uint8_t>(std::min(std::max(color.z, 0.0f), 1.0f) * 255);
     uint8_t a = static_cast<uint8_t>(std::min(std::max(color.w, 0.0f), 1.0f) * 255);
 
-    // 使用更高效的循环
+    // 清除颜色缓冲区
     int totalPixels = width * height;
-    // #pragma omp parallel for
     for (int i = 0; i < totalPixels; ++i) {
-        // 清除颜色缓冲区
         int offset = i * 4;
-        frameData[offset]     = r;
-        frameData[offset + 1] = g;
-        frameData[offset + 2] = b;
-        frameData[offset + 3] = a;
-        
-        // 清除深度缓冲区
-        depthBuffer[i] = depth;
-        
-        // 清除 MSAA 计数器
-        if (msaaEnabled) {
-            msaaSampleCount[i] = 0;
-        }
+        colorBuffer[offset]     = r;
+        colorBuffer[offset + 1] = g;
+        colorBuffer[offset + 2] = b;
+        colorBuffer[offset + 3] = a;
     }
-
-    // 清除 MSAA 深度缓冲区（如果启用）
+    
+    // 清除深度缓冲区
+    std::fill_n(depthBuffer, totalPixels, depth);
+    
+    // 清除 MSAA 相关缓冲区（如果启用）
     if (msaaEnabled) {
-        std::fill(msaaDepthBuffer.begin(), msaaDepthBuffer.end(), depth);
+        std::fill_n(msaaDepthBuffer, totalPixels * MSAA_SAMPLES, depth);
+        std::memset(msaaSampleCount, 0, totalPixels * sizeof(int));
     }
+}
+
+// 获取帧缓冲区数据
+const uint8_t* FrameBuffer::getData() const {
+    return colorBuffer;
 }

@@ -28,7 +28,7 @@ float PhongShader::calculateShadow(const float4& positionLightSpace, const float
     float currentDepth = projCoords.z;
     
     // 方案1: 固定z-offset bias
-    const float constantBias = 0.005f;
+    // const float constantBias = 0.005f;
     
     // 方案2: 根据法线和光照方向动态调整bias
     float cosAngle = std::max(NoL, 0.0f);
@@ -108,7 +108,7 @@ FragmentOutput PhongShader::fragmentShader(const Varyings &input)
         );
     }
 
-    float NoV = dot(normal, viewDir);
+    // float NoV = dot(normal, viewDir);
     float NoL = dot(normal, lightDir);
     float NoH = dot(normal, halfwayDir);
 

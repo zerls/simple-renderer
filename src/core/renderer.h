@@ -20,6 +20,7 @@ class FrameBuffer
 {
 public:
     FrameBuffer(int width, int height);
+    ~FrameBuffer();
 
     // 核心操作
     void setPixel(int x, int y, float depth, const Vec4f &color);
@@ -36,7 +37,7 @@ public:
     // Getters
     float getDepth(int x, int y) const;
     float getMSAADepth(int x, int y, int sampleIndex) const;
-    const uint8_t *getData() const { return frameData.data(); }
+    const uint8_t *getData() const;
     int getWidth() const { return width; }
     int getHeight() const { return height; }
     bool isMSAAEnabled() const { return msaaEnabled; }
@@ -44,13 +45,13 @@ public:
 private:
     // 核心数据
     int width, height;
-    std::vector<uint8_t> frameData;
-    std::vector<float> depthBuffer;
+    uint8_t* colorBuffer;  // 颜色缓冲区
+    float* depthBuffer;    // 深度缓冲区
 
     // MSAA 相关
     bool msaaEnabled;
-    std::vector<float> msaaDepthBuffer;
-    std::vector<int> msaaSampleCount;
+    float* msaaDepthBuffer; // MSAA深度缓冲区
+    int* msaaSampleCount;   // MSAA样本计数
 
     // 辅助方法
     bool isValidCoord(int x, int y) const { return x >= 0 && x < width && y >= 0 && y < height; }
@@ -58,15 +59,15 @@ private:
     int calcMSAAIndex(int x, int y, int sampleIndex) const;
 };
 
-// 处理后的顶点数据 - 保持不变
+// 处理后的顶点数据
 struct ProcessedVertex
 {
-    Vec4f clipPosition;
-    Vec3f screenPosition;
-    Varyings varying;
+    Vec4f clipPosition;   // 裁剪空间位置
+    Vec3f screenPosition; // 屏幕空间位置
+    Varyings varying;     // 插值用的顶点属性
 };
 
-// 光栅化渲染器类 - 优化版本
+// 光栅化渲染器类
 class Renderer
 {
 public:
@@ -125,22 +126,27 @@ private:
     std::shared_ptr<Texture> shadowMap;
     std::unique_ptr<FrameBuffer> shadowFrameBuffer;
 
-    // 优化的渲染管线方法
+    // 核心光栅化方法
     void processTriangleVertices(
         const Triangle &triangle,
         std::shared_ptr<IShader> shader,
         std::array<ProcessedVertex, 3> &processedVertices);
 
-    void rasterizeStandardMode(
+    void rasterizeStandardPixel(
         int x, int y,
-        const std::array<ProcessedVertex, 3> &verts,
+        const std::array<ProcessedVertex, 3> &vertices,
         std::shared_ptr<IShader> shader);
 
-    void rasterizeMSAAMode(
+    void rasterizeMSAAPixel(
         int x, int y,
-        const std::array<ProcessedVertex, 3> &verts,
+        const std::array<ProcessedVertex, 3> &vertices,
         std::shared_ptr<IShader> shader);
+
+    // 辅助方法
+    inline bool faceCull(const std::array<ProcessedVertex, 3> &vertices, float reverseFactor);
+    inline Vec3f computeBarycentric2D(float x, float y, const std::array<Vec3f, 3> &v);
+    inline bool isInsideTriangle(const Vec3f &barycentric);
 };
 
 // 工厂函数
-std::shared_ptr<IShader> createShadowMapShader();
+// std::shared_ptr<IShader> createShadowMapShader();

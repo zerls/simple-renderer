@@ -294,7 +294,7 @@ namespace texture_io
     };
     
     // 获取格式处理器
-    const FormatHandler& getFormatHandler(TextureFileFormat format) {
+    const FormatHandler& getFormatHandler([[maybe_unused]]TextureFileFormat format) {
         // 目前只支持TGA格式，未来可以扩展其他格式
         // 根据format返回对应的处理器
         return formatHandlers[0]; // 当前只有TGA格式
@@ -377,7 +377,7 @@ namespace texture_io
 
                 // 获取深度值，确保索引在范围内
                 float depth = 0.0f;
-                if (srcIndex < depthData.size())
+                if (srcIndex >= 0 && static_cast<size_t>(srcIndex) < depthData.size())
                 {
                     depth = depthData[srcIndex];
                 }

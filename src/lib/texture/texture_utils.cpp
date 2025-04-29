@@ -22,7 +22,8 @@ std::string getFileExtension(TextureFileFormat format) {
 }
 
 // 根据文件扩展名判断文件格式
-TextureFileFormat getFormatFromFilename(const std::string& filename) {
+TextureFileFormat getFormatFromFilename([[maybe_unused]]const std::string& filename) {
+    // const std::string& filename
     // std::string extension;
     // size_t pos = filename.find_last_of('.');
     

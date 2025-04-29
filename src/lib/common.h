@@ -52,14 +52,14 @@ struct Vertex
     Vertex() = default;
     Vertex(const Vec3f &pos, const float4 &col) : position(pos), color(col) {}
     Vertex(const Vec3f &pos, const Vec3f &norm, const Vec2f &tex, const float4 &col) 
-        : position(pos), normal(norm), texCoord(tex), color(col), tangent(0.0f, 0.0f, 0.0f, 1.0f) {}
+        : position(pos), normal(norm),tangent(0.0f, 0.0f, 0.0f, 1.0f), texCoord(tex), color(col) {}
     Vertex(const Vec3f &pos, const Vec3f &norm, const Vec4f &tan, const Vec2f &tex, const float4 &col) 
         : position(pos), normal(norm), tangent(tan), texCoord(tex), color(col) {}
     
     // 添加便利构造函数，从Color转换
     Vertex(const Vec3f &pos, const Color &col) : position(pos), color(col.toFloat4()) {}
     Vertex(const Vec3f &pos, const Vec3f &norm, const Vec2f &tex, const Color &col) 
-        : position(pos), normal(norm), texCoord(tex), color(col.toFloat4()), tangent(0.0f, 0.0f, 0.0f, 1.0f) {}
+        : position(pos), normal(norm),tangent(0.0f, 0.0f, 0.0f, 1.0f), texCoord(tex), color(col.toFloat4())  {}
     Vertex(const Vec3f &pos, const Vec3f &norm, const Vec4f &tan, const Vec2f &tex, const Color &col) 
         : position(pos), normal(norm), tangent(tan), texCoord(tex), color(col.toFloat4()) {}
 };

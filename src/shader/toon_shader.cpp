@@ -1,10 +1,5 @@
 #include "shader.h"
 
-void ToonShader::setUniforms(const ShaderUniforms &uniforms)
-{
-    this->uniforms = uniforms;
-}
-
 float4 ToonShader::vertexShader(const VertexAttributes &attributes, Varyings &output)
 {
     // 将顶点变换到世界空间（用于片元着色器）
@@ -56,10 +51,6 @@ FragmentOutput ToonShader::fragmentShader(const Varyings &input)
         edge = edgeIntensity;
     }
 
-    // 计算基础颜色（不包括边缘）
-    float baseR = diffuse * (input.color.x);
-    float baseG = diffuse * (input.color.y);
-    float baseB = diffuse * (input.color.z);
 
     float4 baseColor = input.color * diffuse;
     // 应用边缘因子
