@@ -41,6 +41,7 @@ public:
     int getWidth() const { return width; }
     int getHeight() const { return height; }
     bool isMSAAEnabled() const { return msaaEnabled; }
+    void copyToPlatform(uint32_t* dst) const;
 
 private:
     // 核心数据

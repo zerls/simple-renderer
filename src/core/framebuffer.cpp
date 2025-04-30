@@ -1,7 +1,7 @@
 #include "renderer.h"
 #include <algorithm>
 #include <cstring> // 为memset添加
-
+#include <thread>
 // 定义 MSAA 常量
 constexpr int MSAA_SAMPLES = 4;
 constexpr float EPSILON = 1e-6f;
@@ -187,4 +187,49 @@ void FrameBuffer::clear(const Vec4f &color, float depth)
 // 获取帧缓冲区数据
 const uint8_t* FrameBuffer::getData() const {
     return colorBuffer;
+}
+
+// 将帧缓冲区复制到平台层
+void FrameBuffer::copyToPlatform(uint32_t* dst) const
+{
+    // 使用多线程并行处理
+    const int numThreads = std::thread::hardware_concurrency();
+    std::vector<std::thread> threads(numThreads);
+    
+    // 按块处理以提高缓存命中率
+    const int BLOCK_SIZE = 32; // 可以根据实际缓存大小调整
+    
+    auto processChunk = [&](int startRow, int endRow) {
+        for (int blockY = startRow; blockY < endRow; blockY += BLOCK_SIZE) {
+            for (int blockX = 0; blockX < width; blockX += BLOCK_SIZE) {
+                // 处理当前块
+                for (int y = blockY; y < std::min(blockY + BLOCK_SIZE, endRow); ++y) {
+                    for (int x = blockX; x < std::min(blockX + BLOCK_SIZE, width); ++x) {
+                        int i = y * width + x;
+                        int srcIndex = i * 4; // RGBA 格式
+                        
+                        // 转换为 ARGB 格式 (SDL 使用)
+                        dst[i] = 
+                            (static_cast<uint32_t>(colorBuffer[srcIndex + 3]) << 24) | // A
+                            (static_cast<uint32_t>(colorBuffer[srcIndex + 0]) << 16) | // R
+                            (static_cast<uint32_t>(colorBuffer[srcIndex + 1]) << 8) |  // G
+                            (static_cast<uint32_t>(colorBuffer[srcIndex + 2]));        // B
+                    }
+                }
+            }
+        }
+    };
+    
+    // 划分工作区域
+    int rowsPerThread = height / numThreads;
+    for (int i = 0; i < numThreads; ++i) {
+        int startRow = i * rowsPerThread;
+        int endRow = (i == numThreads - 1) ? height : (i + 1) * rowsPerThread;
+        threads[i] = std::thread(processChunk, startRow, endRow);
+    }
+    
+    // 等待所有线程完成
+    for (auto& thread : threads) {
+        thread.join();
+    }
 }

@@ -167,9 +167,14 @@ Renderer::Renderer(int width, int height)
     // 设置OpenMP线程数
     // 获取系统可用的处理器核心数
     int max_threads = omp_get_max_threads();
-    // 使用部分核心，留出1-2个核心给系统使用
-    int num_threads = (max_threads > 2) ? max_threads - 2 : 1;
-    omp_set_num_threads(num_threads);
+    // 使用所有核心
+    omp_set_num_threads(max_threads);
+    
+    // 设置OpenMP嵌套并行
+    omp_set_nested(1);
+    
+    // 设置动态线程调度
+    omp_set_dynamic(1);
 }
 
 void Renderer::enableMSAA(bool enable)
@@ -319,7 +324,7 @@ void Renderer::rasterizeMSAAPixel(
     }
 }
 
-// 光栅化三角形
+// 光栅化三角形 - 修改MSAA部分
 void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShader> shader) {
     if (!shader) {
         std::cerr << "Error: No valid shader provided for triangle rendering.\n";
@@ -335,28 +340,147 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
     if (faceCull(vertices, sign))
         return;
     
+    
     // 计算边界框
     auto [minX, minY, maxX, maxY] = calculateBoundingBox(
         {vertices[0].screenPosition, vertices[1].screenPosition, vertices[2].screenPosition},
         frameBuffer->getWidth(), frameBuffer->getHeight());
     
+    // 检查边界框是否有效
+    if (minX > maxX || minY > maxY)
+        return;
+    
     // 计算三角形大小和复杂度
     int pixelCount = (maxX - minX + 1) * (maxY - minY + 1);
     
+    // 计算半空间函数的系数（使用更高效的计算方式）
+    // 预计算边缘函数的增量值，用于扫描线算法
+    float edge1_dy = vertices[1].screenPosition.y - vertices[0].screenPosition.y;
+    float edge1_dx = vertices[0].screenPosition.x - vertices[1].screenPosition.x;
+    float edge1_c = -(edge1_dx * vertices[0].screenPosition.y + edge1_dy * vertices[0].screenPosition.x);
+    
+    float edge2_dy = vertices[2].screenPosition.y - vertices[1].screenPosition.y;
+    float edge2_dx = vertices[1].screenPosition.x - vertices[2].screenPosition.x;
+    float edge2_c = -(edge2_dx * vertices[1].screenPosition.y + edge2_dy * vertices[1].screenPosition.x);
+    
+    float edge3_dy = vertices[0].screenPosition.y - vertices[2].screenPosition.y;
+    float edge3_dx = vertices[2].screenPosition.x - vertices[0].screenPosition.x;
+    float edge3_c = -(edge3_dx * vertices[2].screenPosition.y + edge3_dy * vertices[2].screenPosition.x);
+    
+    // 预计算行增量和列增量，避免在内循环中重复计算
+    float e1_row_inc = edge1_dx;  // 当y增加1时，e1的增量
+    float e1_col_inc = edge1_dy;  // 当x增加1时，e1的增量
+    
+    float e2_row_inc = edge2_dx;
+    float e2_col_inc = edge2_dy;
+    
+    float e3_row_inc = edge3_dx;
+    float e3_col_inc = edge3_dy;
+    
     // 根据三角形大小和系统核心数决定是否并行
     // 较大的三角形使用并行处理
-    if (pixelCount > 256) { // 阈值可以根据实际性能测试调整
+    if (pixelCount > 1024) { // 增大阈值
         // 并行光栅化
         if (msaaEnabled) {
-            #pragma omp parallel for collapse(2) schedule(dynamic, 16)
+            #pragma omp parallel for collapse(2) schedule(guided)
             for (int y = minY; y <= maxY; ++y) 
                 for (int x = minX; x <= maxX; ++x)
                     rasterizeMSAAPixel(x, y, vertices, shader);
         } else {
-            #pragma omp parallel for collapse(2) schedule(dynamic, 16)
-            for (int y = minY; y <= maxY; ++y) 
-                for (int x = minX; x <= maxX; ++x)
-                    rasterizeStandardPixel(x, y, vertices, shader);
+            // 使用块状处理提高缓存命中率
+            const int BLOCK_SIZE = 16; // 可以根据实际缓存大小调整
+            
+            #pragma omp parallel for collapse(2) schedule(guided)
+            for (int blockY = minY; blockY <= maxY; blockY += BLOCK_SIZE) {
+                for (int blockX = minX; blockX <= maxX; blockX += BLOCK_SIZE) {
+                    // 处理当前块
+                    int maxBlockY = std::min(blockY + BLOCK_SIZE - 1, maxY);
+                    int maxBlockX = std::min(blockX + BLOCK_SIZE - 1, maxX);
+                    
+                    // 计算块的起始点的边函数值
+                    float startX = blockX + 0.5f;
+                    float startY = blockY + 0.5f;
+                    
+                    float e1_start = edge1_dx * startY + edge1_dy * startX + edge1_c;
+                    float e2_start = edge2_dx * startY + edge2_dy * startX + edge2_c;
+                    float e3_start = edge3_dx * startY + edge3_dy * startX + edge3_c;
+                    
+                    // 检查块的四个角是否都在三角形外部，如果是则跳过整个块
+                    bool anyCornerInside = false;
+                    
+                    // 左上角
+                    if (e1_start >= 0 && e2_start >= 0 && e3_start >= 0)
+                        anyCornerInside = true;
+                    
+                    // 右上角
+                    float e1_right = e1_start + e1_col_inc * (BLOCK_SIZE - 1);
+                    float e2_right = e2_start + e2_col_inc * (BLOCK_SIZE - 1);
+                    float e3_right = e3_start + e3_col_inc * (BLOCK_SIZE - 1);
+                    if (e1_right >= 0 && e2_right >= 0 && e3_right >= 0)
+                        anyCornerInside = true;
+                    
+                    // 左下角
+                    float e1_bottom = e1_start + e1_row_inc * (BLOCK_SIZE - 1);
+                    float e2_bottom = e2_start + e2_row_inc * (BLOCK_SIZE - 1);
+                    float e3_bottom = e3_start + e3_row_inc * (BLOCK_SIZE - 1);
+                    if (e1_bottom >= 0 && e2_bottom >= 0 && e3_bottom >= 0)
+                        anyCornerInside = true;
+                    
+                    // 右下角
+                    float e1_bottom_right = e1_bottom + e1_col_inc * (BLOCK_SIZE - 1);
+                    float e2_bottom_right = e2_bottom + e2_col_inc * (BLOCK_SIZE - 1);
+                    float e3_bottom_right = e3_bottom + e3_col_inc * (BLOCK_SIZE - 1);
+                    if (e1_bottom_right >= 0 && e2_bottom_right >= 0 && e3_bottom_right >= 0)
+                        anyCornerInside = true;
+                    
+                    // 如果所有角都在三角形外部，检查三角形边是否穿过块
+                    if (!anyCornerInside) {
+                        // 简单的边界框测试 - 如果三角形的任何边穿过块，我们仍然需要处理它
+                        // 这里可以实现更复杂的测试，但为了简单起见，我们处理所有可能相交的块
+                    }
+                    
+                    // 处理块内的像素
+                    for (int y = blockY; y <= maxBlockY; ++y) {
+                        // 计算当前行的起始边函数值
+                        float e1_row = e1_start + e1_row_inc * (y - blockY);
+                        float e2_row = e2_start + e2_row_inc * (y - blockY);
+                        float e3_row = e3_start + e3_row_inc * (y - blockY);
+                        
+                        for (int x = blockX; x <= maxBlockX; ++x) {
+                            // 增量更新边函数值
+                            float e1 = e1_row + e1_col_inc * (x - blockX);
+                            float e2 = e2_row + e2_col_inc * (x - blockX);
+                            float e3 = e3_row + e3_col_inc * (x - blockX);
+                            
+                            // 如果所有边函数值都大于等于0，则点在三角形内
+                            if (e1 >= 0 && e2 >= 0 && e3 >= 0) {
+                                // 计算重心坐标（仅在需要时）
+                                float pixelX = x + 0.5f;
+                                float pixelY = y + 0.5f;
+                                Vec3f barycentric = computeBarycentric2D(pixelX, pixelY, 
+                                    {vertices[0].screenPosition, vertices[1].screenPosition, vertices[2].screenPosition});
+                                
+                                // 后续处理与原来相同
+                                const Vec4f weights = calculatePerspectiveWeights(barycentric, vertices);
+                                const float depth = calculateFragmentDepth(barycentric, weights, vertices);
+                                
+                                if (frameBuffer->depthTest(x, y, depth)) {
+                                    Varyings interpolatedVaryings;
+                                    interpolateVaryings(
+                                        interpolatedVaryings,
+                                        {vertices[0].varying, vertices[1].varying, vertices[2].varying},
+                                        barycentric, weights, depth);
+                                    
+                                    const FragmentOutput output = processFragment(interpolatedVaryings, shader);
+                                    if (!output.discard) {
+                                        frameBuffer->setPixel(x, y, depth, output.color);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     } else {
         // 串行光栅化（小三角形）
@@ -365,9 +489,27 @@ void Renderer::rasterizeTriangle(const Triangle &triangle, std::shared_ptr<IShad
                 for (int x = minX; x <= maxX; ++x)
                     rasterizeMSAAPixel(x, y, vertices, shader);
         } else {
-            for (int y = minY; y <= maxY; ++y) 
-                for (int x = minX; x <= maxX; ++x)
-                    rasterizeStandardPixel(x, y, vertices, shader);
+            // 对于小三角形，使用更简单的扫描线方法
+            for (int y = minY; y <= maxY; ++y) {
+                // 计算当前扫描线的起始边函数值
+                float pixelY = y + 0.5f;
+                float startX = minX + 0.5f;
+                
+                float e1_start = edge1_dx * pixelY + edge1_dy * startX + edge1_c;
+                float e2_start = edge2_dx * pixelY + edge2_dy * startX + edge2_c;
+                float e3_start = edge3_dx * pixelY + edge3_dy * startX + edge3_c;
+                
+                for (int x = minX; x <= maxX; ++x) {
+                    // 使用增量更新边函数值
+                    float e1 = e1_start + edge1_dy * (x - minX);
+                    float e2 = e2_start + edge2_dy * (x - minX);
+                    float e3 = e3_start + edge3_dy * (x - minX);
+                    
+                    if (e1 >= 0 && e2 >= 0 && e3 >= 0) {
+                        rasterizeStandardPixel(x, y, vertices, shader);
+                    }
+                }
+            }
         }
     }
 }
