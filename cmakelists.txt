@@ -34,6 +34,21 @@ else()
     message(FATAL_ERROR "OpenMP not found!")
 endif()
 
+# Find SDL2
+find_package(SDL2 REQUIRED)
+if(SDL2_FOUND)
+    message(STATUS "Successfully found SDL2: ${SDL2_INCLUDE_DIRS}")
+else()
+    # 如果find_package找不到SDL2，尝试使用Homebrew路径
+    set(SDL2_INCLUDE_DIRS "/opt/homebrew/include")
+    set(SDL2_LIBRARIES "/opt/homebrew/lib/libSDL2.dylib")
+    if(EXISTS "${SDL2_LIBRARIES}")
+        message(STATUS "Using SDL2 from Homebrew: ${SDL2_INCLUDE_DIRS}")
+    else()
+        message(FATAL_ERROR "SDL2 not found! Please install SDL2 using Homebrew: brew install sdl2")
+    endif()
+endif()
+
 # Set include directories
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -41,6 +56,8 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/shader
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
+    ${SDL2_INCLUDE_DIRS}
 )
 
 # Find all source files
@@ -48,6 +65,7 @@ file(GLOB_RECURSE MAIN_SRC "main.cpp")
 file(GLOB_RECURSE LIB_SRC "src/lib/*.cpp")
 file(GLOB_RECURSE CORE_SRC "src/core/*.cpp")
 file(GLOB_RECURSE SHADER_SRC "src/shader/*.cpp")
+file(GLOB_RECURSE PLATFORM_SRC "src/platform/*.cpp")
 
 # Exclude texture subdirectory, it will be handled separately
 list(FILTER LIB_SRC EXCLUDE REGEX ".*texture/.*\\.cpp$")
@@ -58,6 +76,7 @@ set(SRC_LIST
     ${LIB_SRC}
     ${CORE_SRC}
     ${SHADER_SRC}
+    ${PLATFORM_SRC}
 )
 
 # Add texture subdirectory
@@ -73,12 +92,15 @@ target_include_directories(SimpleRenderer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/shader
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
+    ${SDL2_INCLUDE_DIRS}
 )
 
-# Link OpenMP and texture libraries
+# Link OpenMP, SDL2 and texture libraries
 target_link_libraries(SimpleRenderer PRIVATE 
     OpenMP::OpenMP_CXX
     texture
+    ${SDL2_LIBRARIES}
 )
 
 # Set resource directories as definitions
