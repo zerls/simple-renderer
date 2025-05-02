@@ -28,6 +28,42 @@ static constexpr const char *_ShadowMap = "shadowmap";
 static constexpr const char *_ColorMap = "colormap";
 static constexpr const char *_NormalMap = "normalmap";
 
+// sRGB 转换为线性颜色空间
+inline float4 srgbToLinear(const float4 &color)
+{
+    auto convert = [](float channel) {
+        return (channel <= 0.04045f) ? (channel / 12.92f) : powf((channel + 0.055f) / 1.055f, 2.4f);
+    };
+    return float4(convert(color.x), convert(color.y), convert(color.z), color.w);
+}
+
+// 线性颜色空间转换为 sRGB
+inline float4 linearToSrgb(const float4 &color)
+{
+    auto convert = [](float channel) {
+        return (channel <= 0.0031308f) ? (channel * 12.92f) : (1.055f * powf(channel, 1.0f / 2.4f) - 0.055f);
+    };
+    return float4(convert(color.x), convert(color.y), convert(color.z), color.w);
+}
+
+// sRGB 转换为线性颜色空间 (float3 版本)
+inline float3 srgbToLinear(const float3 &color)
+{
+    auto convert = [](float channel) {
+        return (channel <= 0.04045f) ? (channel / 12.92f) : powf((channel + 0.055f) / 1.055f, 2.4f);
+    };
+    return float3(convert(color.x), convert(color.y), convert(color.z));
+}
+
+// 线性颜色空间转换为 sRGB (float3 版本)
+inline float3 linearToSrgb(const float3 &color)
+{
+    auto convert = [](float channel) {
+        return (channel <= 0.0031308f) ? (channel * 12.92f) : (1.055f * powf(channel, 1.0f / 2.4f) - 0.055f);
+    };
+    return float3(convert(color.x), convert(color.y), convert(color.z));
+}
+
 // 顶点着色器输入
 struct VertexAttributes
 {

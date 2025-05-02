@@ -5,15 +5,34 @@ template<typename T>
 Matrix4x4<T> Matrix4x4<T>::operator*(const Matrix4x4<T>& other) const {
     Matrix4x4<T> result;
     
-    for (int row = 0; row < 4; ++row) {
-        for (int col = 0; col < 4; ++col) {
-            result.m[row * 4 + col] =
-                m[row * 4 + 0] * other.m[0 * 4 + col] +
-                m[row * 4 + 1] * other.m[1 * 4 + col] +
-                m[row * 4 + 2] * other.m[2 * 4 + col] +
-                m[row * 4 + 3] * other.m[3 * 4 + col];
-        }
-    }
+    // 优化矩阵乘法实现，减少索引计算
+    const T* a = m;
+    const T* b = other.m;
+    T* r = result.m;
+    
+    // 第一行
+    r[0] = a[0] * b[0] + a[1] * b[4] + a[2] * b[8] + a[3] * b[12];
+    r[1] = a[0] * b[1] + a[1] * b[5] + a[2] * b[9] + a[3] * b[13];
+    r[2] = a[0] * b[2] + a[1] * b[6] + a[2] * b[10] + a[3] * b[14];
+    r[3] = a[0] * b[3] + a[1] * b[7] + a[2] * b[11] + a[3] * b[15];
+    
+    // 第二行
+    r[4] = a[4] * b[0] + a[5] * b[4] + a[6] * b[8] + a[7] * b[12];
+    r[5] = a[4] * b[1] + a[5] * b[5] + a[6] * b[9] + a[7] * b[13];
+    r[6] = a[4] * b[2] + a[5] * b[6] + a[6] * b[10] + a[7] * b[14];
+    r[7] = a[4] * b[3] + a[5] * b[7] + a[6] * b[11] + a[7] * b[15];
+    
+    // 第三行
+    r[8] = a[8] * b[0] + a[9] * b[4] + a[10] * b[8] + a[11] * b[12];
+    r[9] = a[8] * b[1] + a[9] * b[5] + a[10] * b[9] + a[11] * b[13];
+    r[10] = a[8] * b[2] + a[9] * b[6] + a[10] * b[10] + a[11] * b[14];
+    r[11] = a[8] * b[3] + a[9] * b[7] + a[10] * b[11] + a[11] * b[15];
+    
+    // 第四行
+    r[12] = a[12] * b[0] + a[13] * b[4] + a[14] * b[8] + a[15] * b[12];
+    r[13] = a[12] * b[1] + a[13] * b[5] + a[14] * b[9] + a[15] * b[13];
+    r[14] = a[12] * b[2] + a[13] * b[6] + a[14] * b[10] + a[15] * b[14];
+    r[15] = a[12] * b[3] + a[13] * b[7] + a[14] * b[11] + a[15] * b[15];
     
     return result;
 }
@@ -165,10 +184,11 @@ template Vec4<float> Matrix4x4<float>::operator*(const Vec4<float>& v) const;
 
 // 矩阵-向量变换函数
 Vec3f transform(const Matrix4x4f& matrix, const Vec3f& vector, float w) {
-    float x = vector.x * matrix.m00 + vector.y * matrix.m01 + vector.z * matrix.m02 + w * matrix.m03;
-    float y = vector.x * matrix.m10 + vector.y * matrix.m11 + vector.z * matrix.m12 + w * matrix.m13;
-    float z = vector.x * matrix.m20 + vector.y * matrix.m21 + vector.z * matrix.m22 + w * matrix.m23;
-    float wOut = vector.x * matrix.m30 + vector.y * matrix.m31 + vector.z * matrix.m32 + w * matrix.m33;
+    const float* m = matrix.m;
+    float x = vector.x * m[0] + vector.y * m[1] + vector.z * m[2] + w * m[3];
+    float y = vector.x * m[4] + vector.y * m[5] + vector.z * m[6] + w * m[7];
+    float z = vector.x * m[8] + vector.y * m[9] + vector.z * m[10] + w * m[11];
+    float wOut = vector.x * m[12] + vector.y * m[13] + vector.z * m[14] + w * m[15];
     
     // 透视除法
     if (std::abs(wOut) > 1e-6f) {
@@ -181,19 +201,23 @@ Vec3f transform(const Matrix4x4f& matrix, const Vec3f& vector, float w) {
 
 
 Vec3f transformNoDiv(const Matrix4x4f& matrix, const Vec3f& vector, float w) {
-    float x = vector.x * matrix.m00 + vector.y * matrix.m01 + vector.z * matrix.m02 + w * matrix.m03;
-    float y = vector.x * matrix.m10 + vector.y * matrix.m11 + vector.z * matrix.m12 + w * matrix.m13;
-    float z = vector.x * matrix.m20 + vector.y * matrix.m21 + vector.z * matrix.m22 + w * matrix.m23;
-    
-    return Vec3f(x, y, z);
-}
-Vec3f transformDir(const Matrix4x4f& mat, const Vec3f& dir) {
+    const float* m = matrix.m;
     return Vec3f(
-        mat.m00 * dir.x + mat.m01 * dir.y + mat.m02 * dir.z,
-        mat.m10 * dir.x + mat.m11 * dir.y + mat.m12 * dir.z,
-        mat.m20 * dir.x + mat.m21 * dir.y + mat.m22 * dir.z
+        vector.x * m[0] + vector.y * m[1] + vector.z * m[2] + w * m[3],
+        vector.x * m[4] + vector.y * m[5] + vector.z * m[6] + w * m[7],
+        vector.x * m[8] + vector.y * m[9] + vector.z * m[10] + w * m[11]
     );
 }
+
+Vec3f transformDir(const Matrix4x4f& mat, const Vec3f& dir) {
+    const float* m = mat.m;
+    return Vec3f(
+        m[0] * dir.x + m[1] * dir.y + m[2] * dir.z,
+        m[4] * dir.x + m[5] * dir.y + m[6] * dir.z,
+        m[8] * dir.x + m[9] * dir.y + m[10] * dir.z
+    );
+}
+
 Vec3f transformNormal(const Matrix4x4f& modelMatrix, const Vec3f& normal) {
     // 简化实现: 假设模型矩阵只有旋转和均匀缩放，可以直接使用模型矩阵
 

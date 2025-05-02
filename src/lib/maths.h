@@ -19,7 +19,7 @@ public:
 
     constexpr T dot(const Vec2<T> &other) const { return x * other.x + y * other.y; } // 点积
     constexpr T length_squared() const { return x * x + y * y; }                      // 向量长度的平方
-    constexpr T length() const { return std::sqrt(length_squared()); }                // 向量长度
+    T length() const { return std::sqrt(length_squared()); }                          // 向量长度
 
     // 归一化
     Vec2<T> normalize() const
@@ -41,6 +41,19 @@ public:
         T invScalar = static_cast<T>(1) / scalar;
         return Vec2<T>(x * invScalar, y * invScalar);
     }
+    
+    // 复合赋值运算符
+    Vec2<T>& operator+=(const Vec2<T> &other) { x += other.x; y += other.y; return *this; }
+    Vec2<T>& operator-=(const Vec2<T> &other) { x -= other.x; y -= other.y; return *this; }
+    Vec2<T>& operator*=(T scalar) { x *= scalar; y *= scalar; return *this; }
+    Vec2<T>& operator*=(const Vec2<T> &other) { x *= other.x; y *= other.y; return *this; }
+    Vec2<T>& operator/=(T scalar) 
+    { 
+        T invScalar = static_cast<T>(1) / scalar;
+        x *= invScalar; 
+        y *= invScalar; 
+        return *this; 
+    }
 };
 
 // Vec3 实现
@@ -57,7 +70,7 @@ public:
     constexpr T dot(const Vec3<T> &other) const { return x * other.x + y * other.y + z * other.z; }                                                // 点积
     Vec3<T> cross(const Vec3<T> &other) const { return Vec3<T>(y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x); } // 叉积
     constexpr T length_squared() const { return x * x + y * y + z * z; }                                                                           // 向量长度的平方
-    constexpr T length() const { return std::sqrt(length_squared()); }                                                                             // 向量长度
+    T length() const { return std::sqrt(length_squared()); }                                                                                       // 向量长度
 
     // 归一化
     Vec3<T> normalize() const
@@ -80,6 +93,20 @@ public:
         return Vec3<T>(x * invScalar, y * invScalar, z * invScalar);
     }
     Vec2<T> xy() const { return Vec2<T>(x, y); } // 返回 Vec2<T> 形式的 x, y 分量
+    
+    // 复合赋值运算符
+    Vec3<T>& operator+=(const Vec3<T> &other) { x += other.x; y += other.y; z += other.z; return *this; }
+    Vec3<T>& operator-=(const Vec3<T> &other) { x -= other.x; y -= other.y; z -= other.z; return *this; }
+    Vec3<T>& operator*=(T scalar) { x *= scalar; y *= scalar; z *= scalar; return *this; }
+    Vec3<T>& operator*=(const Vec3<T> &other) { x *= other.x; y *= other.y; z *= other.z; return *this; }
+    Vec3<T>& operator/=(T scalar) 
+    { 
+        T invScalar = static_cast<T>(1) / scalar;
+        x *= invScalar; 
+        y *= invScalar; 
+        z *= invScalar;
+        return *this; 
+    }
 };
 
 // Vec4 实现
@@ -97,7 +124,7 @@ public:
 
     constexpr T dot(const Vec4<T> &other) const { return x * other.x + y * other.y + z * other.z + w * other.w; } // 点积
     constexpr T length_squared() const { return x * x + y * y + z * z + w * w; }                                  // 向量长度的平方
-    constexpr T length() const { return std::sqrt(length_squared()); }                                            // 向量长度
+    T length() const { return std::sqrt(length_squared()); }                                                      // 向量长度
 
     // 归一化
     Vec4<T> normalize() const
@@ -120,6 +147,21 @@ public:
         return Vec4<T>(x * invScalar, y * invScalar, z * invScalar, w * invScalar);
     }
     Vec3<T> xyz() const { return Vec3<T>(x, y, z); } // 返回 Vec3<T> 形式的 x, y, z 分量
+    
+    // 复合赋值运算符
+    Vec4<T>& operator+=(const Vec4<T> &other) { x += other.x; y += other.y; z += other.z; w += other.w; return *this; }
+    Vec4<T>& operator-=(const Vec4<T> &other) { x -= other.x; y -= other.y; z -= other.z; w -= other.w; return *this; }
+    Vec4<T>& operator*=(T scalar) { x *= scalar; y *= scalar; z *= scalar; w *= scalar; return *this; }
+    Vec4<T>& operator*=(const Vec4<T> &other) { x *= other.x; y *= other.y; z *= other.z; w *= other.w; return *this; }
+    Vec4<T>& operator/=(T scalar) 
+    { 
+        T invScalar = static_cast<T>(1) / scalar;
+        x *= invScalar; 
+        y *= invScalar; 
+        z *= invScalar;
+        w *= invScalar;
+        return *this; 
+    }
 };
 
 // 全局向量操作函数
@@ -142,6 +184,44 @@ template <typename T>
 inline float cross(const Vec2<T> & a, const Vec2<T>& b) {
     return a.x * b.y - a.y * b.x;
 }
+
+// 新增全局函数
+// min/max 函数
+template <typename T>
+inline T min(T a, T b) { return a < b ? a : b; }
+template <typename T>
+inline T max(T a, T b) { return a > b ? a : b; }
+template <typename T>
+inline Vec2<T> min(const Vec2<T>& a, const Vec2<T>& b) { return Vec2<T>(min(a.x, b.x), min(a.y, b.y)); }
+template <typename T>
+inline Vec2<T> max(const Vec2<T>& a, const Vec2<T>& b) { return Vec2<T>(max(a.x, b.x), max(a.y, b.y)); }
+template <typename T>
+inline Vec3<T> min(const Vec3<T>& a, const Vec3<T>& b) { return Vec3<T>(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z)); }
+template <typename T>
+inline Vec3<T> max(const Vec3<T>& a, const Vec3<T>& b) { return Vec3<T>(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z)); }
+template <typename T>
+inline Vec4<T> min(const Vec4<T>& a, const Vec4<T>& b) { return Vec4<T>(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z), min(a.w, b.w)); }
+template <typename T>
+inline Vec4<T> max(const Vec4<T>& a, const Vec4<T>& b) { return Vec4<T>(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z), max(a.w, b.w)); }
+
+// 线性插值函数
+template <typename T>
+inline T lerp(T a, T b, float t) { return a + (b - a) * t; }
+template <typename T>
+inline Vec2<T> lerp(const Vec2<T>& a, const Vec2<T>& b, float t) { return a + (b - a) * t; }
+template <typename T>
+inline Vec3<T> lerp(const Vec3<T>& a, const Vec3<T>& b, float t) { return a + (b - a) * t; }
+template <typename T>
+inline Vec4<T> lerp(const Vec4<T>& a, const Vec4<T>& b, float t) { return a + (b - a) * t; }
+
+// length 函数
+template <typename T>
+inline T length(const Vec2<T>& v) { return v.length(); }
+template <typename T>
+inline T length(const Vec3<T>& v) { return v.length(); }
+template <typename T>
+inline T length(const Vec4<T>& v) { return v.length(); }
+
 // 类型别名
 using Vec2f = Vec2<float>;
 using Vec3f = Vec3<float>;

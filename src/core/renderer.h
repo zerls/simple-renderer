@@ -5,6 +5,7 @@
 #include "material.h"
 #include "texture.h"
 #include "texture_sampler.h"
+#include "framebuffer.h"  // 引入独立的framebuffer头文件
 #include <memory>
 #include <vector>
 #include <array>
@@ -15,51 +16,6 @@ class IShader;
 struct ShaderUniforms;
 struct Varyings;
 
-// FrameBuffer帧缓冲类
-class FrameBuffer
-{
-public:
-    FrameBuffer(int width, int height);
-    ~FrameBuffer();
-
-    // 核心操作
-    void setPixel(int x, int y, float depth, const Vec4f &color);
-    void clear(const Vec4f &color = Vec4f(0.0f), float depth = 1.0f);
-
-    // MSAA 相关
-    void enableMSAA(bool enable);
-    void accumulateMSAAColor(int x, int y, int sampleIndex, float depth, const Vec4f &color);
-
-    // 深度测试
-    bool depthTest(int x, int y, float depth) const;
-    bool msaaDepthTest(int x, int y, int sampleIndex, float depth) const;
-
-    // Getters
-    float getDepth(int x, int y) const;
-    float getMSAADepth(int x, int y, int sampleIndex) const;
-    const uint8_t *getData() const;
-    int getWidth() const { return width; }
-    int getHeight() const { return height; }
-    bool isMSAAEnabled() const { return msaaEnabled; }
-    void copyToPlatform(uint32_t* dst) const;
-
-private:
-    // 核心数据
-    int width, height;
-    uint8_t* colorBuffer;  // 颜色缓冲区
-    float* depthBuffer;    // 深度缓冲区
-
-    // MSAA 相关
-    bool msaaEnabled;
-    float* msaaDepthBuffer; // MSAA深度缓冲区
-    int* msaaSampleCount;   // MSAA样本计数
-
-    // 辅助方法
-    bool isValidCoord(int x, int y) const { return x >= 0 && x < width && y >= 0 && y < height; }
-    int calcIndex(int x, int y) const { return y * width + x; }
-    int calcMSAAIndex(int x, int y, int sampleIndex) const;
-};
-
 // 处理后的顶点数据
 struct ProcessedVertex
 {
@@ -67,6 +23,7 @@ struct ProcessedVertex
     Vec3f screenPosition; // 屏幕空间位置
     Varyings varying;     // 插值用的顶点属性
 };
+
 
 // 光栅化渲染器类
 class Renderer
@@ -122,6 +79,13 @@ public:
     Vec3f screenMapping(const Vec3f &ndcPos);
     const FrameBuffer &getFrameBuffer() const { return *frameBuffer; }
 
+
+    // 边缘函数计算相关
+    struct EdgeFunction {
+        float dx, dy, c;
+        float rowIncrement, colIncrement;
+    };
+
 private:
     //--------------------
     // 核心数据和状态
@@ -158,6 +122,24 @@ private:
         const std::array<ProcessedVertex, 3> &vertices,
         std::shared_ptr<IShader> shader);
 
+    // 新增的MSAA优化方法
+    void processMSAATriangleParallel(
+        const std::array<ProcessedVertex, 3> &vertices,
+        int minX, int minY, int maxX, int maxY,
+        std::shared_ptr<IShader> shader);
+        
+    void processMSAABlockPixels(
+        const std::array<ProcessedVertex, 3> &vertices,
+        int blockX, int blockY, int maxBlockX, int maxBlockY,
+        const float* edgeParams, std::shared_ptr<IShader> shader);
+
+    // 新增 MSAA 采样点检测
+    static const Vec2f msaaSampleOffsets[4];
+    bool isSampleInTriangle(
+        const std::array<EdgeFunction, 3> &edges, 
+        float x, float y, 
+        int sampleIndex);
+
     // 新增封装方法
     void processTriangleParallel(
         const std::array<ProcessedVertex, 3> &vertices,
@@ -174,11 +156,7 @@ private:
         int blockX, int blockY, int maxBlockX, int maxBlockY,
         const float* edgeParams, std::shared_ptr<IShader> shader);
 
-    // 边缘函数计算相关
-    struct EdgeFunction {
-        float dx, dy, c;
-        float rowIncrement, colIncrement;
-    };
+
     
     std::array<EdgeFunction, 3> setupEdgeFunctions(const std::array<ProcessedVertex, 3> &vertices);
     bool isPointInTriangle(const std::array<EdgeFunction, 3> &edges, float x, float y);

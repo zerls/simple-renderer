@@ -18,7 +18,7 @@ float PhongShader::calculateShadow(const float4& positionLightSpace, const float
     projCoords = float3(
         (projCoords.x + 1.0f) * 0.5f,
         (projCoords.y + 1.0f) * 0.5f,
-        projCoords.z
+        (projCoords.z)
     );
     
     // 获取最近深度值
@@ -88,6 +88,7 @@ FragmentOutput PhongShader::fragmentShader(const Varyings &input)
         // printf("normalMap is not null\n");
         // 从法线贴图中获取切线空间法线
         float3 normalColor = normalMap->sample(input.texCoord, SamplerState::LINEAR_CLAMP).xyz();
+        // normalColor =srgbToLinear(normalColor);
         
         // 将 [0,255] 范围转换为 [-1,1] 范围
         float3 tangentNormal = float3(
@@ -116,12 +117,15 @@ FragmentOutput PhongShader::fragmentShader(const Varyings &input)
     float3 ambient = uniforms.surface.ambient * uniforms.light.color * uniforms.light.ambientIntensity;
     
     // 计算漫反射分量
-    float3 basecolor =uniforms.surface.diffuse;
+    // float3 basecolor = uniforms.surface.diffuse;
+    float3 basecolor =srgbToLinear( uniforms.surface.diffuse);
     float diff = std::max(NoL, 0.0f);
     auto colorMap = uniforms.textures.find(_ColorMap)->second;
     if (colorMap)
     {
         basecolor = colorMap->sample(input.texCoord, SamplerState::LINEAR_REPEAT).xyz();
+        // 如果纹理是 sRGB 格式，转换到线性空间
+        basecolor = srgbToLinear(basecolor);
     }
     // float3 basecolor = sampleTexture(_ColorMap,SamplerState::LINEAR_REPEAT, input.texCoord).xyz();
     // 计算漫反射分量
@@ -129,8 +133,9 @@ FragmentOutput PhongShader::fragmentShader(const Varyings &input)
     diffuse = basecolor * uniforms.light.color * (diff * uniforms.light.intensity);
 
 
-
     // 计算镜面反射分量
+    // Blinn-Phong 镜面反射模型
+    // 使用半角向量和法线的点积计算反射强度
     float spec = std::pow(std::max(NoH, 0.0f), uniforms.surface.shininess);
     float3 specular = uniforms.surface.specular * uniforms.light.color * spec * uniforms.light.intensity;
     
@@ -148,12 +153,9 @@ FragmentOutput PhongShader::fragmentShader(const Varyings &input)
     result.y = std::min(result.y, 1.0f);
     result.z = std::min(result.z, 1.0f);
     
-    // 应用顶点颜色
-    // output.color = float4(
-    //     result.x * input.color.x,
-    //     result.y * input.color.y,
-    //     result.z * input.color.z,
-    //     input.color.w);
+
+    result = linearToSrgb(result);
+    // 结果转换为输出颜色
     output.color=float4(result,1.0f);
     return output;
 }

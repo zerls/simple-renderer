@@ -5,8 +5,8 @@
 // 处理相机移动
 void processCamera(Camera &camera, float deltaTime)
 {
-    const float moveSpeed = 2.0f * deltaTime;
-    const float rotateSpeed = 2.0f * deltaTime;
+    const float moveSpeed = 3.0f * deltaTime;
+    const float rotateSpeed = 3.0f * deltaTime;
     const float zoomSpeed = 5.0f * deltaTime;
 
     Vec3f position = camera.getPosition();
