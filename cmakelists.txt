@@ -50,15 +50,16 @@ else()
 endif()
 
 # Set include directories
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/lib
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/shader
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
-    ${SDL2_INCLUDE_DIRS}
-)
+# include_directories(
+#     ${CMAKE_CURRENT_SOURCE_DIR}
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src/lib
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src/shader
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src/scene
+#     ${SDL2_INCLUDE_DIRS}
+# )
 
 # Find all source files
 file(GLOB_RECURSE MAIN_SRC "main.cpp")
@@ -66,6 +67,8 @@ file(GLOB_RECURSE LIB_SRC "src/lib/*.cpp")
 file(GLOB_RECURSE CORE_SRC "src/core/*.cpp")
 file(GLOB_RECURSE SHADER_SRC "src/shader/*.cpp")
 file(GLOB_RECURSE PLATFORM_SRC "src/platform/*.cpp")
+file(GLOB_RECURSE SCENE_SRC "src/scene/*.cpp")
+file(GLOB_RECURSE SRC "src/*.cpp")
 
 # Exclude texture subdirectory, it will be handled separately
 list(FILTER LIB_SRC EXCLUDE REGEX ".*texture/.*\\.cpp$")
@@ -77,6 +80,8 @@ set(SRC_LIST
     ${CORE_SRC}
     ${SHADER_SRC}
     ${PLATFORM_SRC}
+    ${SCENE_SRC}
+    ${SRC}
 )
 
 # Add texture subdirectory
@@ -93,6 +98,7 @@ target_include_directories(SimpleRenderer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/shader
     ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/scene
     ${SDL2_INCLUDE_DIRS}
 )
 

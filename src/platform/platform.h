@@ -46,6 +46,7 @@ void platform_sleep(double seconds);
 #define PLATFORM_KEY_S 22
 #define PLATFORM_KEY_D 7
 #define PLATFORM_KEY_Q 20
+#define PLATFORM_KEY_R 21
 #define PLATFORM_KEY_E 8
 #define PLATFORM_KEY_UP 82
 #define PLATFORM_KEY_DOWN 81

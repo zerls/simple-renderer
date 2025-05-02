@@ -108,7 +108,7 @@ bool FrameBuffer::msaaDepthTest(int x, int y, int sampleIndex, float depth) cons
     if (!isValidCoord(x, y) || !msaaEnabled) return false;
     return depth < msaaDepthBuffer[calcMSAAIndex(x, y, sampleIndex)];
 }
-
+//TODO 需要深度排序，如果先渲染深度大的物体，后渲染深度小的物体，可能会导致半透明重叠渲染
 void FrameBuffer::accumulateMSAAColor(int x, int y, int sampleIndex, float depth, const Vec4f& color)
 {
     if (!isValidCoord(x, y) || !msaaEnabled) return;

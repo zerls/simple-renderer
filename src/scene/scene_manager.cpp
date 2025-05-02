@@ -140,7 +140,7 @@ void SceneManager::initSpheresScene(Scene& scene, int width, int height) {
     Matrix4x4f floorMatrix = Matrix4x4f::translation(0.0f, -4.0f, 0.0f) *
                              Matrix4x4f::scaling(5.0f, 1.0f,5.0f);
     auto floorObj = SceneObject("Floor", planeMesh, floorMaterial, floorMatrix);
-    scene.addObject(floorObj);
+
     
     // 创建多个球体
     const int sphereCount = 7;
@@ -166,6 +166,7 @@ void SceneManager::initSpheresScene(Scene& scene, int width, int height) {
                                     sphereMatrix);
         scene.addObject(sphereObj);
     }
+    scene.addObject(floorObj);
 }
 
 void SceneManager::initCubesScene(Scene& scene, int width, int height) {
@@ -206,7 +207,7 @@ void SceneManager::initCubesScene(Scene& scene, int width, int height) {
     Matrix4x4f floorMatrix = Matrix4x4f::translation(0.0f, -2.0f, 0.0f) *
                              Matrix4x4f::scaling(10.0f, 1.0f, 10.0f);
     auto floorObj = SceneObject("Floor", planeMesh, floorMaterial, floorMatrix);
-    scene.addObject(floorObj);
+    
     
     // 创建立方体塔
     const int levels = 4;
@@ -237,4 +238,5 @@ void SceneManager::initCubesScene(Scene& scene, int width, int height) {
         
         y += scale;
     }
+    scene.addObject(floorObj);
 }
