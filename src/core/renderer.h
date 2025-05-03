@@ -156,7 +156,31 @@ private:
         int blockX, int blockY, int maxBlockX, int maxBlockY,
         const float* edgeParams, std::shared_ptr<IShader> shader);
 
-
+    // 添加缺失的函数声明（移除inline关键字）
+    Vec4f calculatePerspectiveWeights(
+        const Vec3f &barycentric,
+        const std::array<ProcessedVertex, 3> &vertices);
+        
+    float calculateFragmentDepth(
+        const Vec3f &barycentric,
+        const Vec4f &weights,
+        const std::array<ProcessedVertex, 3> &vertices);
+        
+    void interpolateVaryings(
+        Varyings &output,
+        const std::array<Varyings, 3> &v,
+        const Vec3f &barycentric,
+        const Vec4f &weights,
+        float fragmentDepth);
+        
+    FragmentOutput processFragment(
+        const Varyings &interpolatedVaryings,
+        std::shared_ptr<IShader> shader);
+        
+    std::tuple<int, int, int, int> calculateBoundingBox(
+        const std::array<Vec3f, 3> &screenPositions,
+        const int screenWidth,
+        const int screenHeight);
     
     std::array<EdgeFunction, 3> setupEdgeFunctions(const std::array<ProcessedVertex, 3> &vertices);
     bool isPointInTriangle(const std::array<EdgeFunction, 3> &edges, float x, float y);
@@ -164,10 +188,8 @@ private:
     //--------------------
     // 几何计算辅助方法
     //--------------------
-    inline bool faceCull(const std::array<ProcessedVertex, 3> &vertices, float reverseFactor);
-    inline Vec3f computeBarycentric2D(float x, float y, const std::array<Vec3f, 3> &v);
-    inline bool isInsideTriangle(const Vec3f &barycentric);
+    bool faceCull(const std::array<ProcessedVertex, 3> &vertices, float reverseFactor);
+    Vec3f computeBarycentric2D(float x, float y, const std::array<Vec3f, 3> &v);
+    bool isInsideTriangle(const Vec3f &barycentric);
 };
 
-// 工厂函数
-// std::shared_ptr<IShader> createShadowMapShader();
