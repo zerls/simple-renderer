@@ -1,4 +1,4 @@
-#include "camera_controller.h"
+#include "camera.h" // 引入独立的相机头文件
 #include "../platform/platform.h"
 #include <algorithm>
 

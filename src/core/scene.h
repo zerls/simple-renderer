@@ -14,8 +14,8 @@
 #include "IResource.h"
 #include "texture.h"      // 使用新的纹理库
 #include "texture_types.h" // 使用新的纹理类型定义
+#include "camera.h" // 引入独立的相机头文件
 
-// 场景对象，包含网格和材质
 // 场景对象，包含网格和材质
 struct SceneObject {
     std::string name;                 // 对象名称
@@ -32,44 +32,6 @@ struct SceneObject {
         : name(name), meshGUID(meshGUID), materialGUID(materialGUID), 
           modelMatrix(matrix), castShadow(castShadow), receiveShadow(receiveShadow) {}
 };
-
-// 相机类
-class Camera {
-    public:
-        Camera();
-        
-        // 设置相机参数（保持不变）
-        void setPosition(const Vec3f& position);
-        void setTarget(const Vec3f& target);
-        void setUp(const Vec3f& up);
-        void setFOV(float fov);
-        void setAspect(float aspect);
-        void setNearPlane(float nearPlane);
-        void setFarPlane(float farPlane);
-        
-        // 获取相机参数（保持不变）
-        Vec3f getPosition() const { return position; }
-        Vec3f getTarget() const { return target; }
-        Vec3f getUp() const { return up; }
-        float getFOV() const { return fov; }
-        float getAspect() const { return aspect; }
-        float getNearPlane() const { return nearPlane; }
-        float getFarPlane() const { return farPlane; }
-        
-        // 计算视图矩阵和投影矩阵（保持不变）
-        Matrix4x4f getViewMatrix() const;
-        Matrix4x4f getProjectionMatrix() const;
-        
-    private:
-        Vec3f position;    // 相机位置
-        Vec3f target;      // 观察目标点
-        Vec3f up;          // 上方向向量
-        float fov;         // 视野角度（弧度）
-        float aspect;      // 宽高比
-        float nearPlane;   // 近平面距离
-        float farPlane;    // 远平面距离
-    };
-    
 
 // 场景类
 class Scene {

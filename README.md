@@ -22,7 +22,7 @@ Simple Renderer是一个使用C++开发的轻量级软件光栅化渲染引擎�
 ### 环境要求
 
 - C++20或更高版本
-- CMake 3.120+
+- CMake 3.20+
 - 支持的平台：Windows、macOS、Linux
 
 ### 构建步骤

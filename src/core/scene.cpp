@@ -2,29 +2,7 @@
 #include "scene.h"
 #include <iostream>
 #include "texture_io.h" // 添加纹理IO库
-
-// Camera 实现
-Camera::Camera()
-    : position(0.0f, 0.0f, 5.0f), target(0.0f, 0.0f, 0.0f), up(0.0f, 1.0f, 0.0f),
-      fov(3.14159f / 4.0f), aspect(4.0f / 3.0f), nearPlane(0.1f), farPlane(100.0f) {}
-
-void Camera::setPosition(const Vec3f &position) { this->position = position; }
-
-void Camera::setTarget(const Vec3f &target) { this->target = target; }
-
-void Camera::setUp(const Vec3f &up) { this->up = up; }
-
-void Camera::setFOV(float fov) { this->fov = fov; }
-
-void Camera::setAspect(float aspect) { this->aspect = aspect; }
-
-void Camera::setNearPlane(float nearPlane) { this->nearPlane = nearPlane; }
-
-void Camera::setFarPlane(float farPlane) { this->farPlane = farPlane; }
-
-Matrix4x4f Camera::getViewMatrix() const { return Matrix4x4f::lookAt(position, target, up); }
-
-Matrix4x4f Camera::getProjectionMatrix() const { return Matrix4x4f::perspective(fov, aspect, nearPlane, farPlane); }
+#include "camera.h" // 引入独立的相机实现文件
 
 // Scene 实现
 Scene::Scene() : light(Vec3f(0.0f, 10.0f, 10.0f), Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.2f) {}

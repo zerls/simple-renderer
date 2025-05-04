@@ -28,11 +28,12 @@ void printHelp()
     std::cout << "  --shadow=<0|1>    启用/禁用阴影投射 (默认: 0)" << std::endl;
     std::cout << std::endl;
     std::cout << "控制方式：" << std::endl;
-    std::cout << "  W/A/S/D          前后左右移动" << std::endl;
-    std::cout << "  Q/E              上升/下降" << std::endl;
-    std::cout << "  鼠标左键拖动      旋转视角" << std::endl;
-    std::cout << "  鼠标滚轮         缩放视图" << std::endl;
-
+    std::cout << "  W/A/S/D         前后左右移动" << std::endl;
+    std::cout << "  Q/E             上升/下降" << std::endl;
+    std::cout << "  鼠标左键拖动     旋转视角" << std::endl;
+    std::cout << "  鼠标滚轮        缩放视图" << std::endl;
+    std::cout << "  ESC             退出程序" << std::endl;
+    std::cout << "  F2              截图" << std::endl;
 }
 
 // 解析命令行参数
