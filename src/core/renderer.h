@@ -6,6 +6,7 @@
 #include "texture.h"
 #include "texture_sampler.h"
 #include "framebuffer.h"  // 引入独立的framebuffer头文件
+#include "profiler.h"     // 引入性能分析模块
 #include <memory>
 #include <vector>
 #include <array>
@@ -24,6 +25,19 @@ struct ProcessedVertex
     Varyings varying;     // 插值用的顶点属性
 };
 
+// 边缘函数计算相关
+struct EdgeFunction {
+    float dx, dy, c;
+    float rowIncrement, colIncrement;
+};
+
+// 三角形设置阶段数据
+struct TriangleSetupData {
+    std::array<ProcessedVertex, 3> vertices;  // 处理后的顶点
+    std::array<EdgeFunction, 3> edges;        // 边缘函数
+    int minX, minY, maxX, maxY;              // 边界框
+    bool valid;                              // 三角形是否有效(通过背面剔除等)
+};
 
 // 光栅化渲染器类
 class Renderer
@@ -31,6 +45,14 @@ class Renderer
 public:
     Renderer(int width, int height);
     ~Renderer() = default;
+
+    //--------------------
+    // 性能分析相关方法
+    //--------------------
+    void enableProfiling(bool enable) { profilingEnabled = enable; }
+    bool isProfilingEnabled() const { return profilingEnabled; }
+    void resetProfilingData() { if (profilingEnabled) PROFILE_RESET(); }
+    void printProfilingReport() const { if (profilingEnabled) PROFILE_REPORT(); }
 
     //--------------------
     // 基础状态设置
@@ -79,12 +101,22 @@ public:
     Vec3f screenMapping(const Vec3f &ndcPos);
     const FrameBuffer &getFrameBuffer() const { return *frameBuffer; }
 
+    //--------------------
+    // 三角形设置与遍历
+    //--------------------
+    // 三角形设置封装方法
+    TriangleSetupData setupTriangle(const Triangle &triangle, std::shared_ptr<IShader> shader);
+    
+    // 三角形遍历封装方法
+    void traverseTriangle(const TriangleSetupData &setup, std::shared_ptr<IShader> shader);
+    
+    // 处理三角形顶点
+    void processTriangleVertices(
+        const Triangle &triangle,
+        std::shared_ptr<IShader> shader,
+        std::array<ProcessedVertex, 3> &processedVertices);
 
-    // 边缘函数计算相关
-    struct EdgeFunction {
-        float dx, dy, c;
-        float rowIncrement, colIncrement;
-    };
+
 
 private:
     //--------------------
@@ -99,6 +131,7 @@ private:
     Light light;
     Vec3f eyePosWS;
     bool msaaEnabled;
+    bool profilingEnabled = false; // 性能分析开关
 
     // 阴影相关
     std::shared_ptr<Texture> shadowMap;
@@ -107,10 +140,10 @@ private:
     //--------------------
     // 光栅化核心方法
     //--------------------
-    void processTriangleVertices(
-        const Triangle &triangle,
-        std::shared_ptr<IShader> shader,
-        std::array<ProcessedVertex, 3> &processedVertices);
+    // void processTriangleVertices(
+    //     const Triangle &triangle,
+    //     std::shared_ptr<IShader> shader,
+    //     std::array<ProcessedVertex, 3> &processedVertices);
 
     void rasterizeStandardPixel(
         int x, int y,
@@ -155,6 +188,15 @@ private:
         const std::array<ProcessedVertex, 3> &vertices,
         int blockX, int blockY, int maxBlockX, int maxBlockY,
         const float* edgeParams, std::shared_ptr<IShader> shader);
+
+    // 优化的三角形遍历方法
+    void traverseTriangleParallel(const TriangleSetupData &setup, std::shared_ptr<IShader> shader);
+    void traverseTriangleSerial(const TriangleSetupData &setup, std::shared_ptr<IShader> shader);
+    void traverseTriangleBlock(
+        const TriangleSetupData &setup,
+        int blockX, int blockY, 
+        int maxBlockX, int maxBlockY,
+        std::shared_ptr<IShader> shader);
 
     // 添加缺失的函数声明（移除inline关键字）
     Vec4f calculatePerspectiveWeights(

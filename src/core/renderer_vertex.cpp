@@ -83,7 +83,7 @@ std::tuple<int, int, int, int> Renderer::calculateBoundingBox(
 }
 
 // 边缘函数计算
-std::array<Renderer::EdgeFunction, 3> Renderer::setupEdgeFunctions(
+std::array<EdgeFunction, 3> Renderer::setupEdgeFunctions(
     const std::array<ProcessedVertex, 3> &vertices) 
 {
     std::array<EdgeFunction, 3> edges;

@@ -1,7 +1,7 @@
 .DS_Store
 .VSCodeCounter
 build
-.vscode
+# .vscode
 output
 assets
 Old

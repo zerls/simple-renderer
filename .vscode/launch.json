@@ -1,0 +1,49 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Release",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Release/SimpleRenderer",
+            "args": [],
+            "cwd": "${workspaceFolder}/build/",
+            "preLaunchTask": "Build"
+        },
+        {
+            "name": "Release args",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Release/SimpleRenderer",
+            "args": [
+                "--msaa=1",
+                "--shadow=1",
+                // "--scene=cubes"
+            ],
+            "cwd": "${workspaceFolder}/build/",
+            "preLaunchTask": "Build"
+        },
+        {
+            "name": "Release scene",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Release/SimpleRenderer",
+            "args": [
+                "--msaa=1",
+                "--shadow=1",
+                "--scene=spheres"
+            ],
+            "cwd": "${workspaceFolder}/build/",
+            "preLaunchTask": "Build"
+        },
+        {
+            "name": "Debug",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/SimpleRenderer",
+            "args": [],
+            "cwd": "${workspaceFolder}/build/",
+            "preLaunchTask": "Build"
+        }
+    ]
+}
